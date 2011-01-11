@@ -2,11 +2,11 @@ import sys
 import getopt
 
 
-from PySide.QtCore import *
-from PySide.QtGui import *
-from PySide.QtWebKit import *
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+from PyQt4.QtWebKit import *
 from pyview.ide.preferences import *
-import PySide.uic as uic
+import PyQt4.uic as uic
 import pickle
 import cPickle
 import copy
@@ -16,7 +16,7 @@ from pyview.lib.patterns import ObserverWidget,KillableThread
 if 'pyview.lib.ramps' in sys.modules:
   reload(sys.modules['pyview.lib.ramps'])
 from pyview.lib.ramps import *
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 from pyview.lib.datacube import Datacube
 from pyview.lib.canvas import MyMplCanvas
 from pyview.helpers.datamanager import DataManager

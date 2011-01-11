@@ -16,10 +16,10 @@ from pyview.lib.patterns import ObserverWidget,KillableThread
 if 'pyview.lib.ramps' in sys.modules:
   reload(sys.modules['pyview.lib.ramps'])
 from pyview.lib.ramps import *
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 from pyview.lib.datacube import Datacube
 from pyview.helpers.datamanager import DataManager
-from pyview.ide.codeeditor import CodeEditor,globalVariables,localVariables
+from pyview.ide.codeeditor import CodeEditor
 from pyview.lib.classes import *
 
 
@@ -312,7 +312,7 @@ class MeasurementWidget(QWidget,ObserverWidget):
     self.updateRampProperty(all = True)
     print "Running..."
     manager.addDatacube(cube)
-    self.rampThread = RampThread(self.root,cube,globalVariables,globalVariables)
+    self.rampThread = RampThread(self.root,cube,dict(),dict())
     self.rampThread.start()        
         
   def resumeRamps(self):

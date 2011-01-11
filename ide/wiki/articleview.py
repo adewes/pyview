@@ -3,12 +3,12 @@ import mimetypes
 import getopt
 import re
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 #from pyview.lib.wikidb import *
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 
 #This is our directory model...
 class ArticleModel(QAbstractItemModel):
@@ -60,10 +60,10 @@ class ArticleModel(QAbstractItemModel):
         if revisions != None and revisions.count()>0:
           latestRevision = revisions[0]    
           if latestRevision != None:
-            return "%s, Rev:%d" %(latestRevision.title,latestRevision.revision)
+            return QVariant("%s, Rev:%d" %(latestRevision.title,latestRevision.revision)) 
     elif role == Qt.DecorationRole:
       pass
-    return None
+    return QVariant()
     
   def hasChildren(self,index):
     return True

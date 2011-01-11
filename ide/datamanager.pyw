@@ -4,25 +4,27 @@ import getopt
 import pyview.helpers.instrumentsmanager
 import pyview.helpers.datamanager as dm
 
+
 from pyview.lib.datacube import *
 from pyview.lib.classes import *
 from pyview.lib.patterns import *
-from pyview.ide.codeeditor import globalVariables,localVariables
 from pyview.ide.datacubeview import *
 reload(sys.modules['pyview.ide.datacubeview'])
 from pyview.ide.datacubeview import *
 
 import numpy
+import PyQt4.uic as uic
 
-from pyview.lib.canvas import *
-reload(sys.modules['pyview.lib.canvas'])
+
+#from pyview.lib.canvas import *
+#reload(sys.modules['pyview.lib.canvas'])
 from pyview.lib.canvas import *
 
 import weakref
 import gc
 
-
 import time
+
 
 class Datacube2DPlot:
   
@@ -317,7 +319,7 @@ class DatacubeProperties(QWidget,ObserverWidget):
     name = str(self.bindName.text())
     if name != None:
       print "Binding to local variable..."
-      globalVariables[name] = self._cube
+#      globalVariables[name] = self._cube
         
   
   def __init__(self,parent = None):

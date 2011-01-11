@@ -1,5 +1,6 @@
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
+from PyQt4.uic import *
 import sys
 import os
 import os.path
@@ -90,7 +91,7 @@ class MyMplCanvas(FigureCanvas):
       if event.xdata == None:
         self._moveLabel.hide()
         return
-      self._moveLabel.setText(r"x = %g, y = %g" % (event.xdata,event.ydata))
+      self._moveLabel.setText(QString(r"x = %g, y = %g" % (event.xdata,event.ydata)))
       self._moveLabel.adjustSize()
       offset = 10
       if self.width()-event.x < self._moveLabel.width():

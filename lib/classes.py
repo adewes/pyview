@@ -17,8 +17,9 @@ import time
  
 import sys
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
+from PyQt4.uic import *
 
 
 try:

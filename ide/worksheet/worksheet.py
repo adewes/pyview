@@ -11,11 +11,11 @@ import random
 import time
 
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
-from PySide import QtWebKit
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
+from PyQt4 import QtWebKit
 
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 
 class WorkSheet(QAbstractScrollArea):
 

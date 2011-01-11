@@ -1,56 +1,85 @@
 import re
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 from syntaxhighlighter import *
 from preferences import *
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
+from pyview.helpers.coderunner import CodeRunner
 
 import traceback
 import math
 import sys
 import time
 
-from pyview.lib.patterns import KillableThread,StopThread,ReloadableWidget
+from pyview.lib.patterns import ReloadableWidget,ObserverWidget
 
 DEVELOPMENT = False
 
-class CodeThread (KillableThread,QThread):
+class ErrorConsole(QTreeWidget,ObserverWidget):
 
-  def __init__(self,code,gv = globalVariables,lv = globalVariables,callback = None,source = "<my string>"):
-    KillableThread.__init__(self)
-    QThread.__init__(self)
-    self._gv = gv
-    self._lv = lv
-    self._source = source
-    self._failed = False
-    self._callback = callback
-    self.code = code
-    
-  def isRunning(self):
-    return self.isAlive()
-    
-  def failed(self):
-    return self._failed
-    
-  def run(self):
-    try:
-      code = compile(self.code,self._source,'exec')
-      exec(code,self._gv,self._gv)
-    except StopThread:
-      print "Thread termination requested, exiting..."
-    except:
-      exc_type, exc_value, exc_traceback = sys.exc_info()
-      self._exception_type = exc_type
-      self._exception_value = exc_value
-      self._traceback = exc_traceback
-      self._failed = True
-      raise
-    finally:
-      if not self._callback == None:
-        self._callback(self)
+  def __init__(self,codeEditorWindow,codeRunner,parent = None):
+    self._codeEditorWindow = codeEditorWindow
+    self._codeRunner = codeRunner
+    QTreeWidget.__init__(self,parent)
+    ObserverWidget.__init__(self)
+    self.connect(self,SIGNAL("itemDoubleClicked(QTreeWidgetItem *,int)"),self.itemDoubleClicked)
+    self.setColumnCount(2)
+    self.setColumnWidth(0,400)
+    self.setHeaderLabels(["filename","line"])
+    codeRunner.attach(self)
     
     
+  def updatedGui(self,subject,property,value = None):
+    if subject == self._codeRunner and property == "exceptions":
+      for info in value:
+        self.processErrorTraceback(info)
+      self._codeRunner.clearExceptions()
+      
+  def itemDoubleClicked(self,item,colum):
+    if item.parent() != None:
+      filename = unicode(item.text(0))
+      line = int(item.text(1))
+      editor = self._codeEditorWindow.openFile(filename)
+      if editor == None:
+        return
+      editor.highlightLine(line)
+    
+  def processErrorTraceback(self,exceptionInfo):
 
+    while self.topLevelItemCount() > 20:
+      self.takeTopLevelItem(self.topLevelItemCount()-1)
+
+    (exception_type,exception_value,tb) = exceptionInfo
+
+    text = traceback.format_exception_only(exception_type,exception_value)[0]
+  
+    text = text.replace("\n"," ")
+    
+    tracebackEntries = traceback.extract_tb(tb)
+    exceptionItem = QTreeWidgetItem()
+    
+    
+    font = QFont()
+    font.setPixelSize(14)
+
+    exceptionItem.setFont(0,font)
+    
+    self.insertTopLevelItem(0,exceptionItem)
+
+    exceptionItem.setText(0,text)
+    exceptionItem.setFirstColumnSpanned(True)
+    exceptionItem.setFlags(Qt.ItemIsEnabled)
+    
+    for entry in tracebackEntries[1:]:
+      (filename, line_number, function_name, text) = entry
+      
+      item = QTreeWidgetItem()
+      
+      exceptionItem.addChild(item)
+      
+      item.setText(0,filename)
+      item.setText(1,str(line_number))
+          
 class CodeEditorWindow(QWidget,ReloadableWidget):
 
     def checkForOpenFile(self,filename):
@@ -62,37 +91,11 @@ class CodeEditorWindow(QWidget,ReloadableWidget):
           self.Tab.setCurrentWidget(self.Tab.widget(i))
           return self.Tab.widget(i)
       return None
-      
-    def processErrorTraceback(self,tb,exception_type,exception_value):
-
-      text = traceback.format_exception_only(exception_type,exception_value)[0]
-    
-      tracebackEntries = traceback.extract_tb(tb)
-      
-      if self.errorConsole() == None:
-        return
-      
-      console = self.errorConsole()
-
-      self.connect(console,SIGNAL("anchorClicked(const QUrl&)"),self.showErrorLink)
-      
-      console.setOpenLinks(False)
-
-      html = "<h1>Errors</h1><p>%s</p><h2>Traceback</h2><ul>" % text
-      
-      for entry in tracebackEntries[1:]:
-        (filename, line_number, function_name, text) = entry
-        
-        html+="<li><a href=\"file:%s::%d\">%s, line %d</a></li>" % (filename,line_number,filename,line_number)
-        
-      html+= "</ul>"
-    
-      console.setHtml(html)
-      
+            
     def openFile(self,filename = None):
       if self.checkForOpenFile(filename) != None:
         return self.checkForOpenFile(filename) 
-      MyEditor = CodeEditor()
+      MyEditor = CodeEditor(codeRunner = self.codeRunner())
       if MyEditor.openFile(filename) == True:
         self.newEditor(MyEditor)
         MyEditor.updateTab()
@@ -102,10 +105,10 @@ class CodeEditorWindow(QWidget,ReloadableWidget):
         del MyEditor
       return None
       
-    def killThread(self):
-      self.Tab.currentWidget().killThread()
+    def stopExecution(self):
+      self.Tab.currentWidget().stopExecution()
 
-    def executeCode(self):
+    def executeBlock(self):
         self.Tab.currentWidget().executeBlock()
 
     def newEditor(self,Editor = None):
@@ -113,7 +116,7 @@ class CodeEditorWindow(QWidget,ReloadableWidget):
         if Editor != None:
           MyEditor = Editor
         else:
-          MyEditor = CodeEditor()
+          MyEditor = CodeEditor(codeRunner = self.codeRunner())
           MyEditor.append("")
         MyEditor.setTabWidget(self.Tab)
         MyEditor.activateHighlighter()
@@ -159,52 +162,16 @@ class CodeEditorWindow(QWidget,ReloadableWidget):
       self.Tab.currentWidget().executeString(code)
       if self.commandInput.findText(self.commandInput.currentText(),Qt.MatchExactly) == -1 :
         self.commandInput.insertItem(0,self.commandInput.currentText())
-
-    def showErrorLink(self,url):
-      (filename,line) = str(url.path()).split("::")
-      line = int(line)
-      self.errorConsole().setSource(self.errorConsole().source())
-
-      widget = self.openFile(filename)
-
-      if widget != None:
-
-        block = widget.document().findBlockByLineNumber(line-1)
-  
-        selection = QTextEdit.ExtraSelection()
       
-        cursor = widget.textCursor()
-        cursor.setPosition(block.position())
-        cursor.movePosition(QTextCursor.EndOfLine,QTextCursor.KeepAnchor) 
-        selection.cursor = cursor
-        format = QTextCharFormat()
-        format.setBackground(QBrush(QColor(255,255,0)))
-        format.setProperty(QTextFormat.FullWidthSelection, True)
+    def codeRunner(self):
+      return self._codeRunner
 
-        selection.format = format
-
-        cursor = widget.textCursor()
-        cursor.setPosition(block.position())
-        
-        widget.setTextCursor(cursor)
-    
-        widget.setErrorSelections([selection])
-
-        widget.cursorPositionChanged()
-      
-        widget.ensureCursorVisible()
-      
-    def setErrorConsole(self,console):
-      self.connect(console,SIGNAL("anchorClicked(const QUrl & link"),self.showErrorLink)
-      self._errorConsole = console
-      
-    def errorConsole(self):
-      return self._errorConsole
-
-    def __init__(self,parent=None):
+    def __init__(self,parent=None,gv = dict(),lv = dict(),codeRunner = CodeRunner()):
         self.editors = []
         self.count = 1
-        self._errorConsole = None
+        self._gv = gv
+        self._lv = lv
+        self._codeRunner = codeRunner
         QWidget.__init__(self,parent)
         ReloadableWidget.__init__(self)
 
@@ -377,6 +344,30 @@ class CodeEditor(LineTextWidget):
      #self.setPlainText(self.fileOpenThread.text)
           
       
+    def highlightLine(self,line):
+
+      block = self.document().findBlockByLineNumber(line-1)
+  
+      selection = QTextEdit.ExtraSelection()
+    
+      cursor = self.textCursor()
+      cursor.setPosition(block.position())
+      cursor.movePosition(QTextCursor.EndOfLine,QTextCursor.KeepAnchor) 
+      selection.cursor = cursor
+      format = QTextCharFormat()
+      format.setBackground(QBrush(QColor(255,255,0)))
+      format.setProperty(QTextFormat.FullWidthSelection, True)
+  
+      selection.format = format
+  
+      cursor = self.textCursor()
+      cursor.setPosition(block.position())
+      
+      self.setTextCursor(cursor)
+      self.setErrorSelections([selection])
+      self.cursorPositionChanged()
+      self.ensureCursorVisible()
+      
     def setTabWidget(self,widget):
       self._tabWidget = widget
       
@@ -442,22 +433,22 @@ class CodeEditor(LineTextWidget):
         self._saveCode()
         return True
         
-    def updateTab(self,failedThread = False):
+    def updateTab(self):
      if self._tabWidget != None:
         changed_text = ""
-        thread_text = ""
+        running_text = ""
+        if self._codeRunner.isExecutingCode(self):
+          running_text = "[running]"
+        if self._codeRunner.hasFailed(self):
+          running_text = "[failed]"
         if self._Changed == True:
           changed_text = "*"  
-        if failedThread:
-          changed_text+="!"
-        if self._threadStatus == True:
-          thread_text = "[running...]"
         filename = '[not saved]'
         if self.fileName() != None:
           self._tabToolTip = self.fileName()
           filename = os.path.basename(self.fileName())
-        self._tabWidget.setTabText(self._tabWidget.indexOf(self),changed_text+filename+thread_text)
-        self._tabWidget.setTabToolTip(self._tabWidget.indexOf(self),changed_text+self.tabToolTip()+thread_text)
+        self._tabWidget.setTabText(self._tabWidget.indexOf(self),running_text+changed_text+filename)
+        self._tabWidget.setTabToolTip(self._tabWidget.indexOf(self),changed_text+self.tabToolTip())
     
         
     def saveFileAs(self):
@@ -519,11 +510,8 @@ class CodeEditor(LineTextWidget):
       block = self.getCurrentBlock()
       cursor = self.textCursor()
       if cursor.position() == block.cursor.selectionStart():
-        cursor.setPosition(block.cursor.selectionStart())
-        if not cursor.atStart():
-          cursor.setPosition(block.cursor.selectionStart()-1)
-        
-        self.setTextCursor(cursor)
+        cursor.setPosition(block.cursor.selectionStart()-1)
+
         block = self.getCurrentBlock()
         cursor.setPosition(block.cursor.selectionStart())
       else:
@@ -532,16 +520,14 @@ class CodeEditor(LineTextWidget):
       
     def getCurrentBlock(self):
 
-      text = self.document().toPlainText()
+      text = unicode(self.document().toPlainText())
       cursor = self.textCursor().position() 
       
-      blockStart = text.rfind("\n##",0,max(0,cursor-1))
-      blockEnd = text.find("\n##",cursor)
+      blockStart = text.rfind("\n##",0,max(0,cursor-1))+1
+      blockEnd = text.find("\n##",cursor)-1
       
       if blockStart == -1:
         blockStart = 0
-      else:
-        blockStart+= text.find("\n",blockStart)-blockStart
                 
       if blockStart == blockEnd:
         return None
@@ -576,6 +562,8 @@ class CodeEditor(LineTextWidget):
       selections = []
       
       selections.extend(self._errorSelections)
+      
+      self._errorSelections = []
 
       selection = self.getCurrentBlock()
       
@@ -619,46 +607,35 @@ class CodeEditor(LineTextWidget):
       if self.requestClose() == False:
         e.ignore()
 
-    def killThread(self):
-      if self.thread == None:
-        return
-      self.thread.terminate()
-      self._killThread = True
-      self._killTime = time.time()
+    def stopExecution(self):
+      pass
     
-    def _execCode(self,code,callback = None):
-      if self.thread != None:
-        if self.thread.isRunning():
-          print "Terminate or wait for other thread first..."
-          return
-        else:
-          self.thread = None
-      self._killThread = False
-      self._variables["globals"] = self._globalVariables
+    def executeCode(self,code,callback = None):
+      if self._codeRunner.isExecutingCode(self):
+        print "Terminate or wait for other thread first..."
+        return
       source = "[undefined]"
       if self.fileName() != None:
         source = self.fileName()
-      self.thread = CodeThread(code,self._variables,self._variables,callback,source = source)
-      self.thread.setDaemon(True)
-      self.thread.start()
-      self.checkThreadStatus()
+      self._codeRunner.executeCode(code,self,filename = source)
+      self.checkRunStatus()
       
     def executeAll(self,callback = None):
         text = self.document().toPlainText()
-        self._execCode(text,callback)
+        self.executeCode(text,callback)
     
     def executeSelection(self,callback = None):
         text = self.textCursor().selection().toPlainText()
-        self._execCode(unicode(text),callback)
+        self.executeCode(unicode(text),callback)
         
     def executeString(self,string,callback = None):
-      self._execCode(unicode(string),callback)
+      self.executeCode(unicode(string),callback)
 
     def executeBlock(self,callback = None):
         selection = self.getCurrentBlock()
         block = self.document().findBlock(selection.cursor.selectionStart())
         n = block.firstLineNumber()
-        self._execCode("\n"*n+unicode(selection.cursor.selection().toPlainText())+u"\n",callback)
+        self.executeCode("\n"*n+unicode(selection.cursor.selection().toPlainText())+u"\n",callback)
 
     def hideBlock(self):
       print "Hiding..."
@@ -668,8 +645,8 @@ class CodeEditor(LineTextWidget):
     def contextMenuEvent(self,event):
         MyMenu = self.createStandardContextMenu()
         if self.thread != None and self.thread.isRunning():
-          killThread = MyMenu.addAction("terminate execution")
-          self.connect(killThread, SIGNAL('triggered()'), self.killThread)
+          stopExecution = MyMenu.addAction("terminate execution")
+          self.connect(stopExecution, SIGNAL('triggered()'), self.stopExecution)
         else:
           executeBlock = MyMenu.addAction("execute block")
           executeSelection = MyMenu.addAction("execute selection")
@@ -718,42 +695,12 @@ class CodeEditor(LineTextWidget):
             else:
               self.alertFileContentsChanged()
     
-    def checkThreadStatus(self,caller = None):
-      if self.thread == None:
-        if self._threadStatus != False:
-          self._threadStatus = False
-          self.updateTab()
-      else:
-        if self.thread.isRunning():
-          self._errorSelections = []
-          self.cursorPositionChanged()
-          if self._threadStatus == False:
-            self._threadStatus = True
-            self.updateTab()
-        else:
-          if self._threadStatus == True:
-            self._threadStatus = False
-          if self.thread.failed():
-            if self.windowManager() != None:
-              self.windowManager().processErrorTraceback(self.thread._traceback,self.thread._exception_type,self.thread._exception_value)
-            self.updateTab(failedThread = True)
-          else:
-            self.updateTab(failedThread = False)
-          self.thread = None
-      
+    def checkRunStatus(self,caller = None):
+      self.updateTab()
     
     def onTimer(self):
       self.checkForFileModifications()
-      self.checkThreadStatus()
-      if self._killThread and self.thread != None:
-        if self.thread.isRunning():
-          self.thread.join(0.001)
-          if time.time()-self._killTime > 10.0:
-            print "Thread hangs, please try to kill again..."
-            self._killThread = False
-        else:
-          self._killThread = False
-          self.thread = None
+      self.checkRunStatus()
       
     def activateBlockHighlighting(self,activate = False):
       self._blockHighlighting = activate
@@ -788,21 +735,16 @@ class CodeEditor(LineTextWidget):
     def windowManager(self):
       return self._windowManager
       
-    def __init__(self,parent = None):
+    def __init__(self,parent = None,codeRunner = CodeRunner()):
         LineTextWidget.__init__(self,parent)
         self._fileName = None
-        self.thread = None
         self.setTabStopWidth(20)
-        self._threadStatus = False
         self._tabWidget = None
         self._windowManager = None
         self._modifiedAt = None
         self._errorSelections = []
         self._reloadWhenChanged = None
-        self._killThread = False
-        self._killTime = 0
-        self._variables = globalVariables
-        self._globalVariables = globalVariables
+        self._codeRunner = codeRunner
         self._blockHighlighting = True
         self._tabToolTip = '[untitled]'
         self._MyTimer = QTimer(self)

@@ -16,18 +16,19 @@ matplotlib.use('module://pyview.ide.mpl.backend_agg')
 import matplotlib.pyplot
 import pyview.ide.mpl.backend_agg as mpl_backend
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 from codeeditor import *
 from filebrowser import *
 from preferences import *
-
-from pyview.conf.parameters import *
 
 import settings
 import datetime
 import time
 import re
+
+from pyview.lib.patterns import ObserverWidget
+from pyview.config.parameters import params
 
 import pyview.helpers.instrumentsmanager
 
@@ -70,11 +71,6 @@ class LogProxy:
         self._fh = None
         print "Error when writing to logfile, closing..."
     self._callback(text)
-
-class ErrorConsole(QTextBrowser):
-
-  def __init__(self,parent = None):
-    QTextBrowser.__init__(self,parent)
 
 class Log(LineTextWidget):
 
@@ -138,7 +134,7 @@ class Log(LineTextWidget):
       finally:
         self._writing = False
         
-class IDE(QMainWindow):
+class IDE(QMainWindow,ObserverWidget):
 
 
     def fileBrowser(self):
@@ -162,7 +158,7 @@ class IDE(QMainWindow):
 
       if path == '':
         return
-      os.chdir(path)
+      os.chdir(unicode(path))
 
       MyPrefs = Preferences()
       MyPrefs.set('defaultDir',path)
@@ -174,7 +170,8 @@ class IDE(QMainWindow):
       mpl_backend.updateFigures()
       
     def openFile(self,index):
-      path = self.dirModel.filePath(index)
+      print "Opening a file..."
+      path = unicode(self.dirModel.filePath(index))
       if os.path.exists(path) and os.path.isfile(path):
         self.Editor.openFile(path)   
         
@@ -185,9 +182,6 @@ class IDE(QMainWindow):
 
       print "Setting up code environment..."
       
-      globalVariables.clear()
-      localVariables.clear()
-      
       if hasattr(self,"_initThread"):
         if self._initThread.isRunning():
           print "Waiting for init thread to terminate..."
@@ -197,9 +191,7 @@ class IDE(QMainWindow):
       if os.path.exists(startupPath):   
         startupFile = open(startupPath,"r")
         content = startupFile.read()+"\n"
-        self._initThread = CodeThread(content,globalVariables,globalVariables)
-        self._initThread.setDaemon(True)
-        self._initThread.start()
+        self._codeRunner.executeCode(content,self,filename = startupPath)
       else:
         print "Invalid startup file:",startupPath
       
@@ -210,10 +202,10 @@ class IDE(QMainWindow):
       
     def showEvent(self,e):
       QMainWindow.showEvent(self,e)
-#      self.setupCodeEnvironment()
 
     def __init__(self,parent=None):
         QMainWindow.__init__(self,parent)
+        ObserverWidget.__init__(self)
 
         self.setWindowTitle("Python Lab IDE, A. Dewes")
         
@@ -231,7 +223,7 @@ class IDE(QMainWindow):
         self.BrowserWidget = QTreeView()
         
         self.dirModel = QFileSystemModel()
-        self.dirModel.setRootPath(self.dirModel.myComputer())
+        self.dirModel.setRootPath("")
 #        self.dirModel.setReadOnly(False)
         
         self.BrowserWidget.setModel(self.dirModel)
@@ -247,19 +239,19 @@ class IDE(QMainWindow):
           self.changeDirectory(MyPrefs.get('defaultDir'))
 
         self.MyLog = Log()
-        self.errorConsole = ErrorConsole()
         
         horizontalSplitter = QSplitter(Qt.Horizontal)
         verticalSplitter = QSplitter(Qt.Vertical)      
 
-        self.Editor = CodeEditorWindow()
+        self._codeRunner = CodeRunner()
+        self.Editor = CodeEditorWindow(codeRunner = self._codeRunner)
+        self.errorConsole = ErrorConsole(codeEditorWindow = self.Editor,codeRunner = self._codeRunner)
         
-        self.Editor.setErrorConsole(self.errorConsole)
         self.tabs = QTabWidget()
         self.logTabs = QTabWidget()
         
         self.logTabs.addTab(self.MyLog,"Log")
-        self.logTabs.addTab(self.errorConsole,"Errors")
+        self.logTabs.addTab(self.errorConsole,"Traceback")
         
         self.tabs.setMaximumWidth(350)
         self.tabs.addTab(self.BrowserWidget,"Files")
@@ -267,10 +259,6 @@ class IDE(QMainWindow):
         horizontalSplitter.addWidget(self.Editor)
         verticalSplitter.addWidget(horizontalSplitter)
         verticalSplitter.addWidget(self.logTabs)
-
-#        self.connect(self.BrowserWidget.FileBrowser,SIGNAL("openFile(QString)"),self.Editor.openFile)
-
-        #Status bar properties
 
         StatusBar = self.statusBar()
         self.workingPathLabel = QLabel("Working path: "+str(self.dirModel.rootDirectory()))
@@ -351,7 +339,7 @@ class IDE(QMainWindow):
         self.connect(executeSelection, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().executeSelection())
         self.connect(executeAll, SIGNAL('triggered()'), lambda :  self.Editor.Tab.currentWidget().executeAll())
         self.connect(changeWorkingPath, SIGNAL('triggered()'), self.changeWorkingPath)
-        self.connect(killThread, SIGNAL('triggered()'), self.Editor.killThread)
+        self.connect(killThread, SIGNAL('triggered()'), self.Editor.stopExecution)
 
         self.connect(newFile, SIGNAL('triggered()'), self.Editor.newEditor)
         self.connect(openFile, SIGNAL('triggered()'), self.Editor.openFile)
@@ -382,7 +370,10 @@ class IDE(QMainWindow):
 def startIDE(qApp = None):
   if qApp == None:
     qApp = QApplication(sys.argv)
-  QApplication.setStyle(QStyleFactory.create("QMacStyle"))
+  qApp.setStyle(QStyleFactory.create("QMacStyle"))
+  qApp.setStyleSheet("""
+QTreeWidget:Item {padding:6;}
+  """)
   qApp.connect(qApp, SIGNAL('lastWindowClosed()'), qApp,
                     SLOT('quit()'))
   MyIDE = IDE()

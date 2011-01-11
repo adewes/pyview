@@ -21,7 +21,7 @@ import propertyview
 import pyview.ide.datacubeview as datacubeview
 from pyview.lib.datacube import Datacube
 
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 
 class MyScene(QGraphicsScene):
 
@@ -364,7 +364,6 @@ class Editor(QMainWindow):
     self._cube.commit()
 
 if __name__ == '__main__':
-  print PYQT_VERSION_STR 
   app = QApplication(sys.argv)
 
   MyWindow = Editor()

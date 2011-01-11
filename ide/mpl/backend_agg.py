@@ -1,5 +1,5 @@
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 
 from matplotlib.backends.backend_agg import *
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg

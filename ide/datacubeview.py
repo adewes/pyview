@@ -4,12 +4,12 @@ import getopt
 import re
 import weakref
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 #from pyview.lib.wikidb import *
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 from numpy import complex128
 from pyview.lib.patterns import ObserverWidget
 
@@ -72,19 +72,19 @@ class DatacubeViewModel(QAbstractItemModel,ObserverWidget):
 
   def headerData(self,section,orientation,role = Qt.DisplayRole):
     if role == Qt.DisplayRole and orientation == Qt.Vertical:
-      return str(section)
+      return QString(str(section))
     if role == Qt.DisplayRole and orientation == Qt.Horizontal and self._cube != None:
       name = self._cube.columnName(section)
       if name != None:
-        return name
+        return QString(name)
     return QAbstractItemModel.headerData(self,section,orientation,role)
 
   #Returns the data for the given node...
   def data(self,index,role):
     if role == Qt.DisplayRole:
       element = self.getElement(index)
-      return element
-    return None
+      return QVariant(element)
+    return QVariant()
     
   def hasChildren(self,index):
     return False

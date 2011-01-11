@@ -4,14 +4,14 @@ import os
 import os.path
 import string
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 
 import shelve
 import pyview.helpers.instrumentsmanager
 from pyview.lib.classes import *
 from pyview.ide.dashboard import InstrumentDashboard
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 
 if 'pyview.ide.instrumentsarea' in sys.modules:
   reload(sys.modules['pyview.ide.instrumentsarea'])

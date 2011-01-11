@@ -184,7 +184,8 @@ class Manager(Subject,Singleton):
       (host,port,name) = result.groups(0)
       try:
         remoteServer = ServerConnection(result.groups(0)[0],int(result.groups(0)[1]))
-      except SocketError:
+      except socket.error:
+        print "Connection to remote host failed!"
         return None
     else:
       result = re.match(r'^http\:\/\/(.*)\:(\d+)\/(.*)$',address)

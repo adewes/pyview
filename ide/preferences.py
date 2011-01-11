@@ -1,5 +1,5 @@
 from pyview.lib.patterns import Singleton
-from pyview.conf.parameters import params
+from pyview.config.parameters import params
 
 import os
 import os.path

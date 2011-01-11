@@ -11,8 +11,8 @@ import random
 import time
 
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 
 from pyview.ide.wiki.articleeditor import *
 from pyview.ide.filebrowser import *

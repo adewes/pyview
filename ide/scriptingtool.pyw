@@ -4,20 +4,21 @@ import getopt
 sys.path.append('.')
 sys.path.append('../')
 
-from PySide.QtCore import *
-from PySide.QtGui import *
-from PySide.QtWebKit import *
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+from PyQt4.QtWebKit import *
 from pyview.ide.preferences import *
+import PyQt4.uic as uic
 import pickle
 import cPickle
 import copy
 
 
 from pyview.lib.patterns import ObserverWidget,KillableThread
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 from pyview.lib.datacube import Datacube
 from pyview.helpers.datamanager import DataManager
-from pyview.ide.codeeditor import CodeEditor,globalVariables,localVariables
+from pyview.ide.codeeditor import CodeEditor
 from pyview.lib.classes import *
 
 

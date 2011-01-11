@@ -11,11 +11,11 @@ import random
 import time
 
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
-from PySide import QtWebKit
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
+from PyQt4 import QtWebKit
 
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 
 class MyWebView(QtWebKit.QWebView):
 
@@ -28,9 +28,9 @@ class MyWebView(QtWebKit.QWebView):
        argstr+='"%s"' % a+","
       argstr = argstr[:len(argstr)-1]
     if argstr != "":
-      js = "document.execCommand(\"%s\", false, %s)" % (cmd,argstr)
+      js = QString("document.execCommand(\"%1\", false, %2)").arg(cmd).arg(argstr)
     else:
-      js = "document.execCommand(\"%s\", false, null)" % (cmd)
+      js = QString("document.execCommand(\"%1\", false, null)").arg(cmd)
     print "Executing \"%s\"" % js
     frame.evaluateJavaScript(js)
   
@@ -114,8 +114,6 @@ class Editor(QMainWindow):
 
 
 if __name__ == '__main__':
-  print PYQT_VERSION_STR 
-  print PYQT_VERSION
   app = QApplication(sys.argv)
 
 

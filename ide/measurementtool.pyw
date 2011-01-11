@@ -2,9 +2,9 @@ import sys
 import getopt
 
 
-from PySide.QtCore import *
-from PySide.QtGui import *
-from PySide.QtWebKit import *
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+from PyQt4.QtWebKit import *
 from pyview.ide.preferences import *
 import pickle
 import cPickle
@@ -15,10 +15,10 @@ from pyview.lib.patterns import ObserverWidget,KillableThread
 if 'pyview.lib.ramps' in sys.modules:
   reload(sys.modules['pyview.lib.ramps'])
 from pyview.lib.ramps import *
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 from pyview.lib.datacube import Datacube
 from pyview.helpers.datamanager import DataManager
-from pyview.ide.codeeditor import CodeEditor,globalVariables,localVariables
+from pyview.ide.codeeditor import CodeEditor
 from pyview.lib.classes import *
     
 class RampModel(QAbstractItemModel):
@@ -90,8 +90,8 @@ class RampModel(QAbstractItemModel):
   def data(self,index,role = Qt.DisplayRole):
     ramp = self.getRamp(index)
     if role == Qt.DisplayRole:
-      return ramp.name()
-    return None
+      return QVariant(ramp.name())
+    return QVariant()
     
   def index(self,row,column,parent):
     parentRamp = self.getRamp(parent)
@@ -400,7 +400,7 @@ class RunWindow(QWidget,ObserverWidget):
     datacube = Datacube()
     manager = DataManager()
     manager.addDatacube(datacube)
-    gv = globalVariables
+    gv = dict()
     lv = dict()
     self._rampThread = RampThread(self._ramp,datacube,gv = gv,lv = lv)
     self._rampThread.start()

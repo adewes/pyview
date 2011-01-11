@@ -1,8 +1,8 @@
 import sys
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
-from PySide.uic import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
+from PyQt4.uic import *
 
 class NumericEdit(QLineEdit):
   

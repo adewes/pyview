@@ -7,7 +7,7 @@ import timeit
 import sys
 import copy
 
-from PySide.QtCore import *
+from PyQt4.QtCore import *
 
 class Singleton(object):
   _instance = None

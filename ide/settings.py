@@ -1,5 +1,7 @@
 from pyview.ide.instrumentspanel import *
 from pyview.ide.threadpanel import *
+
+
 import pyview.helpers.instrumentsmanager
 import pyview.ide.measurementtool
 import pyview.ide.scriptingtool
@@ -7,7 +9,9 @@ import pyview.ide.datamanager
 import pyview.ide.dataviewer
 import sys
 
+
 from pyview.ide.panel import Panel
+
 
 def showPanel(guiWindow):
   MyManager = pyview.helpers.instrumentsmanager.Manager()
@@ -102,3 +106,4 @@ def InitIDE(ide):
   ide.connect(reinitCodeEnvironment,SIGNAL("triggered()"),ide.setupCodeEnvironment)
   
   
+#print "Done with settings"

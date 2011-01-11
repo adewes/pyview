@@ -5,11 +5,11 @@ import os.path
 import string
 import threading
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 
 from pyview.lib.classes import *
-from pyview.conf.parameters import *
+from pyview.config.parameters import *
 
 
 class ThreadPanel(QWidget,ObserverWidget,ReloadableWidget):

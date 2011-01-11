@@ -7,6 +7,8 @@ import traceback
 
 from threading import Thread
 
+import PyQt4.uic as uic
+
 from pyview.lib.classes import *
 from pyview.lib.datacube import *
 

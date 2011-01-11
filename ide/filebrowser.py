@@ -1,8 +1,8 @@
 import sys
 import mimetypes
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 from preferences import *
 
 
@@ -20,8 +20,8 @@ import string
 from threading import Thread
 import time
 
-from PySide.QtGui import * 
-from PySide.QtCore import *
+from PyQt4.QtGui import * 
+from PyQt4.QtCore import *
 
 cnt = 0
 ID=0
@@ -289,9 +289,9 @@ class MyDirModel(QAbstractItemModel):
       if thread.item.isValid() == False:
         return
       parent = thread.item.parent()
-      if parent != QModelIndex() or True:
+      if parent != None:
         index = self.index (thread.item.row(),thread.item.column(),parent)
-        if index != QModelIndex():
+        if index != None:
           thread.node.fileChildren = []
           if thread.node.len()>0:
             self.removeRows(0,thread.node.len(),index)
@@ -301,7 +301,7 @@ class MyDirModel(QAbstractItemModel):
             thread.node.addChild(node)
           thread.node.checked = True
           self.endInsertRows()
-        self.emit(SIGNAL("nodeUpdated(QVariant)"),thread.node)
+        self.emit(SIGNAL("nodeUpdated(PyQt_PyObject)"),thread.node)
     
   def setup(self):
     self.root = SpecialNode("","[root]")
@@ -320,7 +320,7 @@ class MyDirModel(QAbstractItemModel):
     if item.isValid() == False:
       return
     parent = item.parent()
-    if parent != QModelIndex():
+    if parent != None:
       index = self.index(item.row(),item.column(),parent)          
       if node.len()>0:
         self.removeRows(0,node.len(),index)
@@ -392,18 +392,18 @@ class MyDirModel(QAbstractItemModel):
   def headerData(self,section,orientation,role = Qt.DisplayRole):
     if role == Qt.DisplayRole and orientation == Qt.Horizontal:
       if section == 0:
-        return "Directory"
+        return QString("Directory")
     return QAbstractItemModel.headerData(self,section,orientation,role)
     
   #Returns the data for the given node...
   def data(self,index,role):
     if role == Qt.DisplayRole:
       if index.internalPointer() != None:
-        return index.internalPointer().name() 
+        return QVariant(index.internalPointer().name()) 
     elif role == Qt.DecorationRole:
       if index.internalPointer() != None:
         return index.internalPointer().icon
-    return None
+    return QVariant()
     
   def hasChildren(self,index):
     if index!= QModelIndex():
@@ -478,14 +478,16 @@ class DirectoryTreeView(QTreeView):
         if foundNode != childCopy:
           self.dirModel.removeRows(0,foundNode.len(),indexOfParent)
           foundNode.fileChildren = []
-          self.dirModel.beginInsertRows(indexOfParent,0,childCopy.len()-1)
           for child in childCopy.children:
             foundNode.addChild(child)
-          self.dirModel.endInsertRows()
           foundNode.mTime = childCopy.mTime
           foundNode.checked = True
 
+          self.dirModel.beginInsertRows(indexOfParent,0,childCopy.len()-1)
+          self.dirModel.endInsertRows()
+
         #Now we expand all the nodes down to the new directory...
+        
         self.expandAndSelectNode(result)
 
         return True
@@ -497,7 +499,7 @@ class DirectoryTreeView(QTreeView):
   def expandAndSelectNode(self,node):
     nodePath = []
     self.clearSelection()
-    while node.parent() != QModelIndex():
+    while node.parent() != None:
       nodePath.append(node)
       node = node.parent()
     nodePath.append(node)
@@ -537,7 +539,7 @@ class DirectoryTreeView(QTreeView):
     node = index.internalPointer()
     if node != None:
       if node.__class__.__name__ == "FileNode":
-        self.emit(SIGNAL("openFile(QString)"),node.fullPath())
+        self.emit(SIGNAL("openFile(QString)"),QString(node.fullPath()))
       
     
   def selectionChanged(self,selected,deselected):
@@ -655,7 +657,10 @@ class BrowserWidget(QWidget):
     
   def changeDirectory(self,dir):
     print "Changing directory to ",dir
-    self.DirectoryBrowser.changeDirectory(dir)
+    if type(dir) is QString:
+      self.DirectoryBrowser.changeDirectory(str(dir))
+    else:
+      self.DirectoryBrowser.changeDirectory(dir)
     
   def __init__(self,parent = None):
     QWidget.__init__(self,parent)
