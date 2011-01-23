@@ -37,7 +37,7 @@ DEBUG = False
 from pyview.lib.patterns import *
 
 
-class FrontPanel(QWidget,ReloadableWidget,ObserverWidget):
+class FrontPanel(QWidget,ObserverWidget):
   
   """
   A QT instrument frontpanel.
@@ -51,23 +51,21 @@ class FrontPanel(QWidget,ReloadableWidget,ObserverWidget):
     self.instrument.attach(self)
     
   def __del__(self):
+    print "Detaching instrument..."
     self.instrument.detach(self)
     
   def hideEvent(self,e):
-    QWidget.hideEvent(self,e)
     self.instrument.detach(self)
+    QWidget.hideEvent(self,e)
     
   def showEvent(self,e):
-    QWidget.showEvent(self,e)
     self.instrument.attach(self)
+    QWidget.showEvent(self,e)
   
   def __init__(self,instrument,parent=None):
     QWidget.__init__(self,parent)
-    ReloadableWidget.__init__(self)
     ObserverWidget.__init__(self)
-    self.setAttribute(Qt.WA_DeleteOnClose,True)
     self.setInstrument(instrument)
-    self.setAttribute(Qt.WA_DeleteOnClose)
 
 
 class Instrument(ThreadedDispatcher,Reloadable,object):
@@ -214,6 +212,7 @@ import xmlrpclib
 class RequestHandler(SimpleXMLRPCRequestHandler):
     rpc_paths = ('/RPC2',)
 
+import pickle
 import cPickle
 import socket
 from struct import pack,unpack
@@ -280,6 +279,8 @@ class ServerConnection:
       while len(received)>0 and len(binary) < length:
         received = sock.recv(length-len(binary))
         binary+=received
+      if len(binary) == 0:
+        return None
       response = Command().fromString(binary)
       if response == None:
         raise Exception("Connection to server %s port %d failed." % (self._ip,self._port))

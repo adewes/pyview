@@ -9,17 +9,14 @@ class InstrumentDashboard(QMainWindow):
 
   def reloadInstrument(self):
     print "Reloading instrument"
-    self.instrument = self.Manager.reloadInstrument(self._instrument)
-    self.frontpanel.setInstrument(self.instrument)
+    self.Manager.reloadInstrument(self._instrument)
 
   def reloadFrontPanel(self):
     self.initFrontPanel()
       
   def reloadAll(self):
-    self.reloadInstrument()
     self.reloadFrontPanel()
-    import gc
-    gc.collect()
+    self.reloadInstrument()
 
   def initDashboard(self,*args):
     print "Loading front panel..."
@@ -32,23 +29,23 @@ class InstrumentDashboard(QMainWindow):
     print "Done."
 
   def initFrontPanel(self):
-    if self.frontpanel != None:
-        print "Detaching..."
-        self.instrument.detach(self.frontpanel)
-    self.frontpanel = self.Manager.frontPanel(self._instrument)
-    self.setCentralWidget(self.frontpanel)
-        
-
+    self.hide()
+    try:
+      self.frontpanel = self.Manager.frontPanel(self._instrument)
+      self.setCentralWidget(self.frontpanel)
+    finally:
+      self.show()  
   def __init__(self,instrument,*args):
 
     self._instrument = instrument
+    self.frontpanel = None
 
     self.Manager = pyview.helpers.instrumentsmanager.Manager()
 
     QMainWindow.__init__(self,None)
 
     self.setWindowTitle("%s frontpanel" % instrument)
-    self.frontpanel = None
+
     self.initDashboard(*args)
     
     menuBar = self.menuBar()
@@ -62,7 +59,6 @@ class InstrumentDashboard(QMainWindow):
     self.connect(reloadFrontPanel,SIGNAL("triggered()"),self.reloadFrontPanel)
     self.connect(reloadAll,SIGNAL("triggered()"),self.reloadAll)
     
-    self.setAttribute(Qt.WA_DeleteOnClose,True)
 
 if __name__ == '__main__':
   print "Loading frontpanel for instrument %s" % sys.argv[1]

@@ -172,6 +172,7 @@ class Manager(Subject,Singleton):
     reload(frontPanelModule)
     frontPanelModule =  __import__("frontpanels.%s" % moduleName,globals(),globals(),[moduleName],-1)
     frontPanel = frontPanelModule.Panel(handle._instrument)
+    frontPanel.setWindowTitle("%s front panel" % name)
     return frontPanel
     
     
@@ -296,9 +297,9 @@ class Manager(Subject,Singleton):
       raise KeyError("No such instrument: %s" % name)
 
     handle = self._instruments[name.lower()]
-
-
-    self.stopInstrument(handle)
+    if handle.instrument().isAlive():
+      raise Exception("Cannot reload instrument while it is running...")
+#    self.stopInstrument(handle)
 
     if args != []:
       passedArgs = args

@@ -182,7 +182,6 @@ class ThreadedDispatcher(Dispatcher,KillableThread):
       if self.isAlive():
         return
       KillableThread.__init__(self)
-      self.daemon = True
       self.start()
     
     def run(self):
@@ -236,8 +235,8 @@ class ObserverWidget(Observer):
 
   def clearUpdateQueue(self):
     self.updateQueue = []
-
-  def __init__(self,checkInterval = 500):
+    
+  def __init__(self,checkInterval = 1000):
     self.updateQueue =  []
     self.updateQueueTimer = QTimer(self)
     self.updateQueueTimer.setInterval(checkInterval)

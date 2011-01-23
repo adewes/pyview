@@ -52,7 +52,7 @@ class InstrumentsPanel(QWidget,ObserverWidget,ReloadableWidget):
       if name in self.dashboards:
         self._instrumentsArea.removeFrontPanel(self.dashboards[name])
 #        del self.dashboards[name]
-      panel = InstrumentDashboard(name)
+      panel = self.manager.frontPanel(name)
       self._instrumentsArea.addFrontPanel(panel)
       self._instrumentsArea.show()
       panel.show()

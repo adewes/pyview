@@ -28,7 +28,6 @@ class ErrorConsole(QTreeWidget,ObserverWidget):
     self.setHeaderLabels(["filename","line"])
     codeRunner.attach(self)
     
-    
   def updatedGui(self,subject,property,value = None):
     if subject == self._codeRunner and property == "exceptions":
       for info in value:
@@ -73,12 +72,11 @@ class ErrorConsole(QTreeWidget,ObserverWidget):
     for entry in tracebackEntries[1:]:
       (filename, line_number, function_name, text) = entry
       
-      item = QTreeWidgetItem()
-      
-      exceptionItem.addChild(item)
-      
-      item.setText(0,filename)
-      item.setText(1,str(line_number))
+      if os.path.exists(filename) and os.path.isfile(filename):
+        item = QTreeWidgetItem()
+        exceptionItem.addChild(item)
+        item.setText(0,filename)
+        item.setText(1,str(line_number))
           
 class CodeEditorWindow(QWidget,ReloadableWidget):
 
@@ -452,7 +450,7 @@ class CodeEditor(LineTextWidget):
     
         
     def saveFileAs(self):
-      FileName = QFileDialog.getSaveFileName()[0]
+      FileName = QFileDialog.getSaveFileName()
       if FileName != '':
         print "Saving document as %s" % FileName
         if os.path.isfile(FileName):
@@ -466,7 +464,7 @@ class CodeEditor(LineTextWidget):
       
     def openFile(self,FileName = None):
       if FileName == None:
-        FileName = QFileDialog.getOpenFileName()[0]
+        FileName = QFileDialog.getOpenFileName()
       if os.path.isfile(FileName):
           return self._openCode(FileName)
       return False
@@ -608,7 +606,8 @@ class CodeEditor(LineTextWidget):
         e.ignore()
 
     def stopExecution(self):
-      pass
+      if self._codeRunner.isExecutingCode(self):
+        self._codeRunner.stopExecution(self)
     
     def executeCode(self,code,callback = None):
       if self._codeRunner.isExecutingCode(self):
@@ -644,7 +643,7 @@ class CodeEditor(LineTextWidget):
 
     def contextMenuEvent(self,event):
         MyMenu = self.createStandardContextMenu()
-        if self.thread != None and self.thread.isRunning():
+        if self.thread != None and self._codeRunner.isExecutingCode(self):
           stopExecution = MyMenu.addAction("terminate execution")
           self.connect(stopExecution, SIGNAL('triggered()'), self.stopExecution)
         else:

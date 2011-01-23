@@ -19,6 +19,7 @@ from pyview.config.parameters import *
 from pyview.lib.datacube import Datacube
 from pyview.helpers.datamanager import DataManager
 from pyview.ide.codeeditor import CodeEditor
+from pyview.helpers.coderunner import CodeRunner
 from pyview.lib.classes import *
     
 class RampModel(QAbstractItemModel):
@@ -268,31 +269,15 @@ class RampTree(QTreeView):
         self._tool.setRamp(None)
     QTreeView.selectionChanged(self,selected,deselected)
 
-class RampThread(KillableThread):
-
-  def __init__(self,ramp,datacube,gv = globals(),lv = globals()):
-    KillableThread.__init__(self)
-    self._ramp = ramp
-    self.datacube = datacube
-    self.gv = gv
-    self.lv = lv    
-    
-  def ramp(self):
-    return self._ramp
-    
-  def run(self):
-    if self._ramp == None:
-      return
-    self._ramp.run(self.datacube,gv = self.gv,lv = self.lv)
-
 class RunWindow(QWidget,ObserverWidget):
 
-  def __init__(self,editor,treeview,parent = None):
+  def __init__(self,editor,treeview,codeRunner,parent = None):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     
     self._editor = editor
     self._treeview = treeview
+    self._codeRunner = codeRunner
     self._ramp = None
 
     rampButtons = QBoxLayout(QBoxLayout.LeftToRight)
@@ -300,12 +285,14 @@ class RunWindow(QWidget,ObserverWidget):
     self.runButton = QPushButton("Run")
     self.pauseButton = QPushButton("Pause")
     self.stopButton = QPushButton("Stop")
-    
+    self.killButton = QPushButton("Terminate")
+
     self.rampName = QLabel("")
 
     rampButtons.addWidget(self.runButton)
     rampButtons.addWidget(self.pauseButton)
     rampButtons.addWidget(self.stopButton)
+    rampButtons.addWidget(self.killButton)
     rampButtons.addStretch()
 
     self.rampProgress = QSlider(Qt.Horizontal)
@@ -317,6 +304,7 @@ class RunWindow(QWidget,ObserverWidget):
     self.connect(self.runButton,SIGNAL("clicked()"),self.runRamp)
     self.connect(self.pauseButton,SIGNAL("clicked()"),self.pauseRamp)
     self.connect(self.stopButton,SIGNAL("clicked()"),self.stopRamp)
+    self.connect(self.killButton,SIGNAL("clicked()"),self.killRamp)
     
     layout = QGridLayout()
     
@@ -370,7 +358,12 @@ class RunWindow(QWidget,ObserverWidget):
     self.runButton.setEnabled(runStatus)
     self.pauseButton.setEnabled(pauseStatus)
     self.stopButton.setEnabled(stopStatus)
-
+    
+    if self._codeRunner.isExecutingCode(self):
+      self.killButton.setEnabled(True)
+    else:
+      self.killButton.setEnabled(False)
+    
   def setRamp(self,ramp):
     if self.ramp() != None:
       if self.ramp().isRunning() or self.ramp().isPaused():
@@ -387,23 +380,22 @@ class RunWindow(QWidget,ObserverWidget):
     if self.ramp().isPaused():
       self.ramp().fullResume()
       return
-    if hasattr(self,'_rampThread'):
-      if self._rampThread.isAlive():
-        ramp = self._rampThread.ramp()
-        if isinstance(ramp,RampReference):
-          ramp = ramp.ramp()
-        if ramp.isRunning():
-          return
-        if ramp.isPaused():
-          ramp.resume()
-          return
+    if self._codeRunner.isExecutingCode(self):
+      return
     datacube = Datacube()
     manager = DataManager()
     manager.addDatacube(datacube)
-    gv = dict()
     lv = dict()
-    self._rampThread = RampThread(self._ramp,datacube,gv = gv,lv = lv)
-    self._rampThread.start()
+    lv["lv"] = lv
+    lv["gv"] = self._codeRunner.gv()
+    lv["ramp"] = self._ramp
+    lv["datacube"] = datacube
+    code = """ramp.run(datacube = datacube,gv = gv,lv = lv)"""
+    self._codeRunner.executeCode(code,self,"<ramp:%s>" % self._ramp.name(),lv = lv,gv = lv)
+    
+  def killRamp(self):
+    if self._codeRunner.isExecutingCode(self):
+      self._codeRunner.stopExecution(self)
     
   def pauseRamp(self):  
     if self.ramp() == None:
@@ -427,11 +419,13 @@ class MeasurementTool(QMainWindow,ObserverWidget):
   def onTimer(self):
     self.save()
       
-  def __init__(self,parent = None):
+  def __init__(self,codeRunner,parent = None):
     QMainWindow.__init__(self,parent)
     ObserverWidget.__init__(self)
     
     self._timer = QTimer(self)
+    
+    self._codeRunner = codeRunner
     
     self._timer.setInterval(1000*60)
     
@@ -470,7 +464,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     
     rightLayout = QBoxLayout(QBoxLayout.TopToBottom)
     
-    self.runWindow = RunWindow(self.rampTree,self.rampEditor)
+    self.runWindow = RunWindow(treeview = self.rampTree,codeRunner = codeRunner,editor = self.rampEditor)
     
     rightLayout.addWidget(self.runWindow)
     rightLayout.addWidget(self.rampEditor)

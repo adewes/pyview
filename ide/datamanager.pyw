@@ -317,17 +317,18 @@ class DatacubeProperties(QWidget,ObserverWidget):
   
   def updateBind(self):
     name = str(self.bindName.text())
-    if name != None:
+    if name != None and self._codeRunner != None:
       print "Binding to local variable..."
-#      globalVariables[name] = self._cube
+      self._codeRunner.gv()[name] = self._cube
         
   
-  def __init__(self,parent = None):
+  def __init__(self,parent = None,codeRunner = None):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     layout = QGridLayout()
     
     self._cube = None
+    self._codeRunner = codeRunner
     self.name = QLineEdit()
     self.filename = QLineEdit()
     self.filename.setReadOnly(True)
@@ -472,12 +473,13 @@ class DataManager(QMainWindow,ReloadableWidget,ObserverWidget):
     else:
       self._cube.savetxt()
   
-  def __init__(self,parent = None):
+  def __init__(self,parent = None,codeRunner = None):
     QMainWindow.__init__(self,parent)
     ReloadableWidget.__init__(self)
     ObserverWidget.__init__(self)
     self.setWindowTitle("Data Manager")
     self.setAttribute(Qt.WA_DeleteOnClose,True)
+    self._codeRunner = codeRunner
     layout = QGridLayout()
     self.manager = dm.DataManager()
     self.datacubeList = DataTreeView()
@@ -506,7 +508,7 @@ class DataManager(QMainWindow,ReloadableWidget,ObserverWidget):
     widget.setLayout(layout)
     
     self.setCentralWidget(widget)
-    self.props = DatacubeProperties()
+    self.props = DatacubeProperties(codeRunner = codeRunner)
     self.manager.attach(self)
 
     self.addButton = QPushButton("Add datacube")

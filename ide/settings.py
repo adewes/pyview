@@ -54,13 +54,13 @@ def showScriptingTool(guiWindow):
 
 def showMeasurementTool(guiWindow):
   reload(sys.modules["pyview.ide.measurementtool"])
-  tool = pyview.ide.measurementtool.MeasurementTool()
+  tool = pyview.ide.measurementtool.MeasurementTool(codeRunner = guiWindow.codeRunner())
   tool.show()
   guiWindow._measurementTool = tool
   
 def showDataManager(guiWindow):
   reload(sys.modules["pyview.ide.datamanager"])
-  guiWindow.dataManager = pyview.ide.datamanager.DataManager()
+  guiWindow.dataManager = pyview.ide.datamanager.DataManager(codeRunner = guiWindow.codeRunner())
   guiWindow.dataManager.show()
   
 def reloadInstrumentsTab(ide):

@@ -28,7 +28,7 @@ class CodeThread (KillableThread):
   def run(self):
     try:
       code = compile(self.code,self._source,'exec')
-      exec(code,self._gv,self._gv)
+      exec(code,self._lv,self._gv)
     except StopThread:
       print "Thread termination requested, exiting..."
     except:
@@ -90,10 +90,14 @@ class CodeRunner(Reloadable,Subject):
       return
     self._threads[identifier].terminate()
     
-  def executeCode(self,code,identifier,filename = None):
+  def executeCode(self,code,identifier,filename = None, lv = None,gv = None):
     if self.isExecutingCode(identifier):
       return False
-    ct = CodeThread(code,source = filename,lv = self._lv,gv = self._gv,callback = self.threadCallback)
+    if lv == None:
+      lv = self._lv
+    if gv == None:
+      gv = self._gv
+    ct = CodeThread(code,source = filename,lv = lv,gv = gv,callback = self.threadCallback)
     self._threads[identifier] = ct
     ct.setDaemon(True)
     ct.start()

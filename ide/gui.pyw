@@ -202,6 +202,9 @@ class IDE(QMainWindow,ObserverWidget):
       
     def showEvent(self,e):
       QMainWindow.showEvent(self,e)
+      
+    def codeRunner(self):
+      return self._codeRunner
 
     def __init__(self,parent=None):
         QMainWindow.__init__(self,parent)
@@ -243,7 +246,9 @@ class IDE(QMainWindow,ObserverWidget):
         horizontalSplitter = QSplitter(Qt.Horizontal)
         verticalSplitter = QSplitter(Qt.Vertical)      
 
-        self._codeRunner = CodeRunner()
+        gv = dict()
+
+        self._codeRunner = CodeRunner(gv = gv,lv = gv)
         self.Editor = CodeEditorWindow(codeRunner = self._codeRunner)
         self.errorConsole = ErrorConsole(codeEditorWindow = self.Editor,codeRunner = self._codeRunner)
         

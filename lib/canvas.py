@@ -16,7 +16,7 @@ from matplotlib import rcParams
 from math import fabs
 
 rcParams['font.family'] = 'sans-serif'
-rcParams['font.size'] = '8'
+rcParams['font.size'] = '12'
 rcParams['interactive'] = True
 rcParams['font.sans-serif'] = ['Tahoma']
 
@@ -230,10 +230,10 @@ class MyMplCanvas(FigureCanvas):
         self.mpl_connect('button_release_event', self.onRelease)
         self.mpl_connect('motion_notify_event', self.onMove)
 
-        #FigureCanvas.setSizePolicy(self,
-        #                           QSizePolicy.Expanding,
-        #                           QSizePolicy.Expanding)
-        #FigureCanvas.updateGeometry(self)
+        FigureCanvas.setSizePolicy(self,
+                                   QSizePolicy.Expanding,
+                                   QSizePolicy.Expanding)
+        FigureCanvas.updateGeometry(self)
 
 class MatplotlibCanvas(MyMplCanvas):
   pass
