@@ -393,7 +393,7 @@ class CodeEditor(LineTextWidget):
     def _saveCode(self):
       if self.fileName() == None:
         return
-      self._modifiedAt = time.time()
+      self._modifiedAt = time.time()+10
       try:
         file = open(self.fileName(),'w')
         file.write(unicode(self.document().toPlainText()))

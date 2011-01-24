@@ -140,7 +140,7 @@ class RampModel(QAbstractItemModel):
       row = 0
     if data != None:
       parentRamp = self.getRamp(parent)
-      if parentRamp == None or isinstance(parentRamp,RampReference):
+      if parentRamp == None:
         return False
       if self._dropAction == Qt.MoveAction:
         for index in self._mimeData:
@@ -154,20 +154,11 @@ class RampModel(QAbstractItemModel):
           oldParentRamp.removeChild(ramp)
           parentRamp.insertChild(row,ramp)
           self.endMoveRows()
-      elif self._dropAction == Qt.LinkAction:
-        for index in self._mimeData:
-          self.beginInsertRows(parent,row,row)
-          ramp = self.getRamp(index)
-          parentRamp.insertChild(row,RampReference(ramp))
-          self.endInsertRows()
       else:
         for index in self._mimeData:
           self.beginInsertRows(parent,row,row)
           ramp = self.getRamp(index)
-          if isinstance(ramp,RampReference):
-            newRamp = RampReference(ramp)
-          else:
-            newRamp = copy.deepcopy(ramp)
+          newRamp = copy.deepcopy(ramp)
           parentRamp.insertChild(row,newRamp)
           self.endInsertRows()
     return True
@@ -203,8 +194,6 @@ class RampTree(QTreeView):
 
     QAbstractItemView.dropEvent(self,e)
 
-
-
   def renameRamp(self):
 
     selectedItems = self.selectedIndexes()
@@ -213,7 +202,7 @@ class RampTree(QTreeView):
       index = selectedItems[0]
       ramp = self.model().getRamp(index)
     
-      if ramp == None or isinstance(ramp,RampReference):
+      if ramp == None:
         return
     
       dialog = QInputDialog()
@@ -226,8 +215,6 @@ class RampTree(QTreeView):
       if dialog.result() == QDialog.Accepted:
         ramp.setName(str(dialog.textValue()))
       
-    
-
   def deleteRamp(self):
   
     message = QMessageBox(QMessageBox.Question,"Confirm deletion","Are you sure that you want to delete this ramp?", QMessageBox.Yes | QMessageBox.No)
@@ -260,8 +247,6 @@ class RampTree(QTreeView):
   def selectionChanged(self,selected,deselected):
     if len(selected.indexes()) == 1:
       ramp = self.model().getRamp(selected.indexes()[0])
-      if isinstance(ramp,RampReference):
-        self._tool.setRamp(None)
       if self._tool != None:
         self._tool.setRamp(ramp)
     else:
@@ -271,9 +256,17 @@ class RampTree(QTreeView):
 
 class RunWindow(QWidget,ObserverWidget):
 
+  def onTimer(self):
+    self.updateInterface()
+
   def __init__(self,editor,treeview,codeRunner,parent = None):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
+
+    self._timer = QTimer(self)
+    self._timer.setInterval(1000)
+    self._timer.start()
+    self.connect(self._timer,SIGNAL("timeout()"),self.onTimer)
     
     self._editor = editor
     self._treeview = treeview
@@ -283,57 +276,30 @@ class RunWindow(QWidget,ObserverWidget):
     rampButtons = QBoxLayout(QBoxLayout.LeftToRight)
     
     self.runButton = QPushButton("Run")
-    self.pauseButton = QPushButton("Pause")
-    self.stopButton = QPushButton("Stop")
     self.killButton = QPushButton("Terminate")
 
     self.rampName = QLabel("")
 
     rampButtons.addWidget(self.runButton)
-    rampButtons.addWidget(self.pauseButton)
-    rampButtons.addWidget(self.stopButton)
     rampButtons.addWidget(self.killButton)
     rampButtons.addStretch()
-
-    self.rampProgress = QSlider(Qt.Horizontal)
     
-    self.rampProgress.setMinimum(0)
-    self.rampProgress.setMaximum(100)
-    self.rampProgress.setValue(50)
-
     self.connect(self.runButton,SIGNAL("clicked()"),self.runRamp)
-    self.connect(self.pauseButton,SIGNAL("clicked()"),self.pauseRamp)
-    self.connect(self.stopButton,SIGNAL("clicked()"),self.stopRamp)
     self.connect(self.killButton,SIGNAL("clicked()"),self.killRamp)
     
     layout = QGridLayout()
     
     layout.addWidget(self.rampName)
     layout.addItem(rampButtons)
-    layout.addWidget(self.rampProgress)
     
     self.setLayout(layout)
         
-  def updatedGui(self,object,property,value = None):
-    if object == self.ramp():
-      self.updateInterface()
-      if property == "currentValue":
-        self.rampProgress.setEnabled(True)
-        self.rampProgress.setValue(self.ramp().progress())    
-      if property == "stopped":
-        self.stopRamp()
-
   def ramp(self):
-    if isinstance(self._ramp,RampReference):
-      return self._ramp.ramp()
-    else:
-      return self._ramp
+    return self._ramp
 
   def updateInterface(self):
   
     rampTreeStatus = True
-    stopStatus = False
-    pauseStatus = False
     runStatus = False    
     editorStatus = True
     
@@ -341,23 +307,17 @@ class RunWindow(QWidget,ObserverWidget):
     
     if ramp != None:
       runStatus = True
-      if ramp.isRunning():
-        pauseStatus = True
-        stopStatus = True
+      if self._codeRunner.isExecutingCode(self):
         runStatus = False
         editorStatus = False
         rampTreeStatus = False
-      elif ramp.isPaused():
-        pauseStatus = False
-        stopStatus = True
+      else:
         runStatus = True
         rampTreeStatus = True
         
     self._treeview.setEnabled(rampTreeStatus)
     self._editor.setEnabled(editorStatus)
     self.runButton.setEnabled(runStatus)
-    self.pauseButton.setEnabled(pauseStatus)
-    self.stopButton.setEnabled(stopStatus)
     
     if self._codeRunner.isExecutingCode(self):
       self.killButton.setEnabled(True)
@@ -365,20 +325,10 @@ class RunWindow(QWidget,ObserverWidget):
       self.killButton.setEnabled(False)
     
   def setRamp(self,ramp):
-    if self.ramp() != None:
-      if self.ramp().isRunning() or self.ramp().isPaused():
-        return
-      self.ramp().detach(self)
     self._ramp = ramp
-    if ramp != None:
-      self.ramp().attach(self)
-      self.rampName.setText("Running Ramp:" + self.ramp().name())
 
   def runRamp(self):
     if self.ramp() == None:
-      return
-    if self.ramp().isPaused():
-      self.ramp().fullResume()
       return
     if self._codeRunner.isExecutingCode(self):
       return
@@ -386,29 +336,13 @@ class RunWindow(QWidget,ObserverWidget):
     manager = DataManager()
     manager.addDatacube(datacube)
     lv = dict()
-    lv["lv"] = lv
-    lv["gv"] = self._codeRunner.gv()
-    lv["ramp"] = self._ramp
-    lv["datacube"] = datacube
-    code = """ramp.run(datacube = datacube,gv = gv,lv = lv)"""
-    self._codeRunner.executeCode(code,self,"<ramp:%s>" % self._ramp.name(),lv = lv,gv = lv)
+    lv["data"] = datacube
+    self._codeRunner.executeCode(self.ramp().code(),self,"<ramp:%s>" % self._ramp.name(),lv = lv)
+    self.updateInterface()
     
   def killRamp(self):
     if self._codeRunner.isExecutingCode(self):
       self._codeRunner.stopExecution(self)
-    
-  def pauseRamp(self):  
-    if self.ramp() == None:
-      return
-    self.ramp().fullPause()
-    
-  def stopRamp(self):
-    if self.ramp() == None:
-      return
-    self.ramp().fullStop()
-    self.rampProgress.setValue(100)
-    self._runRamp = None
-
 
 class MeasurementTool(QMainWindow,ObserverWidget):
 
@@ -480,7 +414,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     
     self.setCentralWidget(widget)
     
-    self._root = ParameterRamp()
+    self._root = Ramp()
     
     self._rampModel = RampModel(self._root)
     self.rampTree.setModel(self._rampModel)
@@ -492,10 +426,8 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     
   def rampCreationRequested(self):
     name = str(self.rampName.text())
-
-    ramp = ParameterRamp()
+    ramp = Ramp()
     ramp.setName(name)
-
     self._rampModel.addRamp(ramp)
 
   def save(self):
@@ -519,83 +451,40 @@ class MeasurementTool(QMainWindow,ObserverWidget):
 class RampEditor(QWidget,ObserverWidget):
   
   def setRamp(self,root): 
-    if isinstance(root,RampReference):
-      self.tabs.setEnabled(False)
-    else:
-      self.tabs.setEnabled(True)
     self.setEnabled(True)
     self.root = root
     self.updateRampInfo()
 
   def updateRampInfo(self):
     if self.root != None:
-      if isinstance(self.root,RampReference):
-        self.rampRangeGenerator.setPlainText(self.root.initialization())
-        return
-      self.rampGenerator.setPlainText(self.root.generator())
-      self.rampRangeGenerator.setPlainText(self.root.rangeGenerator())
-      self.rampCode.setPlainText(self.root.code())
-      self.rampFinish.setPlainText(self.root.finish())
+      self.rampCode.setPlainText(unicode(self.root.code()))
     else:
-      self.rampGenerator.setPlainText("")
-      self.rampRangeGenerator.setPlainText("")
       self.rampCode.setPlainText("")
-      self.rampFinish.setPlainText("")
 
   def updateRampProperty(self,property = None,all = False):
     if self.root == None:
       return
-    if isinstance(self.root,RampReference):
-      if  property == "rangeGenerator" or all:
-        self.root.setInitialization(self.rampRangeGenerator.toPlainText())
-      return
-    if self.root.isRunning() and not self.root.isPaused():
-      return
     if property == "code" or all:
-      self.root.setCode(self.rampCode.toPlainText())
-    if property == "finish" or all:
-      self.root.setFinish(self.rampFinish.toPlainText())
-    elif property == "generator" or all:
-      self.root.setGenerator(self.rampGenerator.toPlainText())
-    elif property == "rangeGenerator" or all:
-      self.root.setRangeGenerator(self.rampRangeGenerator.toPlainText())
+      self.root.setCode(unicode(self.rampCode.toPlainText()))
              
   def __init__(self,parent = None):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     self.root = None
     
-    self.rampRangeGenerator = CodeEditor()
     self.rampCode = CodeEditor()
-    self.rampGenerator = CodeEditor()
-    self.rampFinish = CodeEditor()
-
-    self.tabs = QTabWidget()
-    
-    self.tabs.addTab(self.rampGenerator,"Initialization")
-    self.tabs.addTab(self.rampCode,"Code")
-    self.tabs.addTab(self.rampFinish,"Cleanup")
 
     layout = QGridLayout()
     
     codeLayout = QGridLayout()
         
-    self.rampRangeGenerator.setFixedHeight(100)
-        
-    layout.addWidget(QLabel("Generator"))
-    layout.addWidget(self.rampRangeGenerator)
-    layout.addWidget(self.tabs)
+    layout.addWidget(QLabel("Code"))
+    layout.addWidget(self.rampCode)
     
     self.connect(self.rampCode,SIGNAL("textChanged()"),lambda property = "code":self.updateRampProperty(property))
-    self.connect(self.rampFinish,SIGNAL("textChanged()"),lambda property = "finish":self.updateRampProperty(property))
-    self.connect(self.rampGenerator,SIGNAL("textChanged()"),lambda property = "generator":self.updateRampProperty(property))
-    self.connect(self.rampRangeGenerator,SIGNAL("textChanged()"),lambda property = "rangeGenerator":self.updateRampProperty(property))
     
     self.rampCode.activateHighlighter()
-    self.rampFinish.activateHighlighter()
-    self.rampGenerator.activateHighlighter()    
     self.preferences = Preferences()
-    self.setAttribute(Qt.WA_DeleteOnClose,True)
     self.updateRampInfo()
     self.setLayout(layout)
     
