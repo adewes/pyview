@@ -107,7 +107,7 @@ class RampModel(QAbstractItemModel):
     return 1
 
   def supportedDropActions(self):
-    return Qt.MoveAction | Qt.CopyAction | Qt.LinkAction
+    return Qt.MoveAction | Qt.CopyAction
     
   def setDropAction(self,action):
     self._dropAction = action
@@ -179,7 +179,6 @@ class RampTree(QTreeView):
     
     copyAction = menu.addAction("Copy")
     moveAction = menu.addAction("Move")
-    linkAction = menu.addAction("Link")
       
     action = menu.exec_(self.viewport().mapToGlobal(e.pos()))
     
@@ -187,10 +186,8 @@ class RampTree(QTreeView):
     
     if action == copyAction:
       model.setDropAction(Qt.CopyAction)
-    elif action == moveAction:
+    else:
       model.setDropAction(Qt.MoveAction)
-    elif action == linkAction:
-      model.setDropAction(Qt.LinkAction)
 
     QAbstractItemView.dropEvent(self,e)
 
@@ -336,6 +333,8 @@ class RunWindow(QWidget,ObserverWidget):
     manager = DataManager()
     manager.addDatacube(datacube)
     lv = dict()
+    gv = self._codeRunner.gv()
+    gv["data"] = datacube
     lv["data"] = datacube
     self._codeRunner.executeCode(self.ramp().code(),self,"<ramp:%s>" % self._ramp.name(),lv = lv)
     self.updateInterface()

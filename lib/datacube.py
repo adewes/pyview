@@ -824,7 +824,7 @@ class Datacube(Subject,Observer,Reloadable):
     Used to clean up the filename and remove all unwanted characters
     """
     filename = re.sub(r'\.','p',filename)    
-    filename = re.sub(r'[^\=\_\-\+\w\d\[\]\(\)\s]','_',filename)
+    filename = re.sub(r'[^\=\_\-\+\w\d\[\]\(\)\s\\\/]','_',filename)
     return filename
     
   def save(self,filename,format = 'pickle'):

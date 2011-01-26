@@ -1,5 +1,7 @@
 import sys
 import getopt
+import os
+import os.path
 
 import pyview.helpers.instrumentsmanager
 import pyview.helpers.datamanager as dm
@@ -457,11 +459,20 @@ class DataManager(QMainWindow,ReloadableWidget,ObserverWidget):
   def saveCubeAs(self):
     self.saveCube(saveAs = True)
         
-  def setAsMaster(self):
+  def markAsGood(self):
     if self._cube == None:
       return
-    manager = dm.DataManager()
-    manager.setMaster(self._cube)
+    workingDir = os.getcwd()
+    subDir = os.path.normpath(workingDir+"/good_data")
+    if not os.path.exists(subDir):
+      os.mkdir(subDir)
+    if "goodData" in self._cube.parameters() and self._cube.parameters()["goodData"] == True:
+      print "Already marked, returning..."
+      return
+    self._cube.savetxt(os.path.normpath(subDir+"/"+self._cube.name()))
+    self._cube.parameters()["goodData"] = True
+    messageBox = QMessageBox(QMessageBox.Information,"Data marked as good","The data has been marked and copied into the subfolder \"good_data\"")
+    messageBox.exec_()
 
   def saveCube(self,saveAs = False):
     if self._cube == None:
@@ -514,13 +525,13 @@ class DataManager(QMainWindow,ReloadableWidget,ObserverWidget):
     self.addButton = QPushButton("Add datacube")
     self.saveButton = QPushButton("Save")
     self.saveAsButton = QPushButton("Save As...")
-    self.setAsMasterButton = QPushButton("Set as master")
+    self.markAsGoodButton = QPushButton("Mark as Good")
     self.removeButton = QPushButton("Remove datacube")
 
     self.connect(self.addButton,SIGNAL("clicked()"),self.addCube)
     self.connect(self.saveButton,SIGNAL("clicked()"),self.saveCube)
     self.connect(self.saveAsButton,SIGNAL("clicked()"),self.saveCubeAs)
-    self.connect(self.setAsMasterButton,SIGNAL("clicked()"),self.setAsMaster)
+    self.connect(self.markAsGoodButton,SIGNAL("clicked()"),self.markAsGood)
     self.connect(self.removeButton,SIGNAL("clicked()"),self.removeCube)
 
     boxLayout = QBoxLayout(QBoxLayout.LeftToRight)
@@ -528,7 +539,7 @@ class DataManager(QMainWindow,ReloadableWidget,ObserverWidget):
     boxLayout.addWidget(self.removeButton)
     boxLayout.addWidget(self.saveButton)
     boxLayout.addWidget(self.saveAsButton)
-    boxLayout.addWidget(self.setAsMasterButton)
+    boxLayout.addWidget(self.markAsGoodButton)
     boxLayout.addStretch()
 
     leftLayout.addLayout(boxLayout,1,0)

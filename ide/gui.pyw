@@ -19,7 +19,6 @@ import pyview.ide.mpl.backend_agg as mpl_backend
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
 from codeeditor import *
-from filebrowser import *
 from preferences import *
 
 import settings
@@ -378,6 +377,7 @@ def startIDE(qApp = None):
   qApp.setStyle(QStyleFactory.create("QMacStyle"))
   qApp.setStyleSheet("""
 QTreeWidget:Item {padding:6;}
+QTreeView:Item {padding:6;}
   """)
   qApp.connect(qApp, SIGNAL('lastWindowClosed()'), qApp,
                     SLOT('quit()'))

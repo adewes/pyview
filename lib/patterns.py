@@ -104,6 +104,7 @@ class Subject:
                 except:
                   print "An error occured when notifying observer %s." % str(observer())
                   print sys.exc_info()
+                  raise
         self.isNotifying = False
       except:
         print sys.exc_info()
