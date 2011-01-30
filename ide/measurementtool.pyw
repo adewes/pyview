@@ -1,15 +1,14 @@
 import sys
 import getopt
 
-
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4.QtWebKit import *
 from pyview.ide.preferences import *
 import pickle
+import yaml
 import cPickle
 import copy
-
 
 from pyview.lib.patterns import ObserverWidget,KillableThread
 if 'pyview.lib.ramps' in sys.modules:
@@ -31,11 +30,11 @@ class RampModel(QAbstractItemModel):
     self._dropAction = Qt.MoveAction
     self._mimeData = None
         
-  def dump(self):
-    return {"root":self._root.tostring()}    
+  def dump(self,usePickle = True):
+    return {"root":self._root.tostring(usePickle = usePickle)}    
     
-  def load(self,params):
-    self._root = Ramp.fromstring(params["root"])
+  def load(self,params,usePickle = True):
+    self._root = Ramp.fromstring(params["root"],usePickle = usePickle)
     
   def deleteRamp(self,index):
     parent = self.parent(index)
@@ -430,14 +429,22 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     self._rampModel.addRamp(ramp)
 
   def save(self):
-    dump = self._rampModel.dump()
+    dump = self._rampModel.dump(usePickle = True)
     self.preferences.set("measurementTool.ramps",dump)
+    rampFile = open("ramps.yaml","w")
+    stringdump = self._rampModel.dump(usePickle = False)
+    string = yaml.dump(stringdump)
+    rampFile.write(string)
+    rampFile.close()
     self.preferences.save() 
     
   def restore(self):
     try:
       ramps = self.preferences.get("measurementTool.ramps")
-      self._rampModel.load(ramps)  
+      if ramps == None:
+        print "No ramps stored..."
+        return
+      self._rampModel.load(ramps,usePickle = True)  
     except KeyError:
       print sys.exc_info()
       print "Error"

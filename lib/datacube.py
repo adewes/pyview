@@ -15,7 +15,7 @@ import string
 
 from pyview.lib.patterns import Subject,Observer,Reloadable
 
-#This is a hirarchical data storage class. A datacube stores a 2-dimensional array of values. Each array column is identified by a name. In addition, you can add one or more "child datacubes" to each row of the array, thus creating a multidimensional data model.
+#This is a hirarchical data storage class. A datacube stores a 2-dimensional array of values. Each array len(self._table[self._index,:])) is identified by a name. In addition, you can add one or more "child datacubes" to each row of the array, thus creating a multidimensional data model.
 class Datacube(Subject,Observer,Reloadable):
   
   def __getstate__(self):
@@ -893,3 +893,18 @@ class Datacube(Subject,Observer,Reloadable):
     self.setFilename(directory+"/"+filename+".par")
 
     self._parmtime = os.path.getmtime(directory+"/"+filename+".par")
+    
+    
+          
+  def ColumnMean(self,column):
+    """
+    Return mean value of a Column
+    """
+    value=0
+    
+    if self._index != None:
+      for i in range(0,self._len):
+        value+=self._table[i,self._map[column]]
+      mean=value/self._len
+      print self._len
+    return mean

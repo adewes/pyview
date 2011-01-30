@@ -30,11 +30,26 @@ class Ramp(Subject):
   def setParent(self,parent):
     self._parent = parent
 
-  def tostring(self):
-    return pickle.dumps(self)
+  def tostring(self,usePickle = True):
+    if usePickle:
+      return pickle.dumps(self)
+    state = dict()
+    state["code"] = self._code
+    state["name"] = self._name
+    state["children"] = []
+    for child in self.children():
+      state["children"].append(child.tostring(usePickle = usePickle))
+    return state
 
-  def fromstring(cls,string):
-    return pickle.loads(string)
+  def fromstring(cls,state,usePickle = True):
+    if usePickle:
+      return pickle.loads(state)
+    ramp = Ramp()
+    ramp.setCode(state["code"])
+    ramp.setName(state["name"])
+    for child in state["children"]:
+      ramp.addChild(Ramp.fromstring(child),usePickle = usePickle)
+    return ramp
 
   fromstring = classmethod(fromstring)
 
