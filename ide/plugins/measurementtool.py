@@ -6,9 +6,11 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4.QtWebKit import *
 from pyview.ide.preferences import *
+from pyview.config.parameters import params
 import pickle
 import cPickle
 import copy
+import yaml
 
 
 from pyview.ide.patterns import ObserverWidget
@@ -41,11 +43,26 @@ class CodeSnippet(Subject):
   def setParent(self,parent):
     self._parent = parent
 
-  def tostring(self):
-    return pickle.dumps(self)
+  def tostring(self,usePickle = True):
+    if usePickle:
+      return pickle.dumps(self)
+    state = dict()
+    state["codeSnippet"] = self._codeSnippet
+    state["name"] = self._name
+    state["children"] = []
+    for child in self.children():
+      state["children"].append(child.tostring(usePickle = usePickle))
+    return state
 
-  def fromstring(cls,string):
-    return pickle.loads(string)
+  def fromstring(cls,state,usePickle = True):
+    if usePickle:
+      return pickle.loads(state)
+    ramp = Ramp()
+    ramp.setCodeSnippet(state["codeSnippet"])
+    ramp.setName(state["name"])
+    for child in state["children"]:
+      ramp.addChild(Ramp.fromstring(child),usePickle = usePickle)
+    return ramp
 
   fromstring = classmethod(fromstring)
 
@@ -99,14 +116,11 @@ class CodeSnippetModel(QAbstractItemModel):
     self._dropAction = Qt.MoveAction
     self._mimeData = None
         
-  def dump(self):
-    return {"root":self._root.tostring()}    
+  def dump(self,usePickle = True):
+    return {"root":self._root.tostring(usePickle = usePickle)}    
     
-  def load(self,params):
-    if "root" in params:
-      self._root = CodeSnippet.fromstring(params["root"])
-    else:
-      self._root = CodeSnippet()
+  def load(self,params,usePickle = True):
+    self._root = CodeSnippet.fromstring(params["root"],usePickle = usePickle)
     
   def deleteCodeSnippet(self,index):
     parent = self.parent(index)
@@ -407,7 +421,7 @@ class RunWindow(QWidget,ObserverWidget):
     gv = self._codeRunner.gv()
     gv["data"] = datacube
     lv["data"] = datacube
-    self._codeRunner.executeCodeSnippet(self.codeSnippet().codeSnippet(),self,"<codeSnippet:%s>" % self._codeSnippet.name(),lv = lv)
+    self._codeRunner.executeCode(self.codeSnippet().codeSnippet(),self,"<codeSnippet:%s>" % self._codeSnippet.name(),lv = lv)
     self.updateInterface()
     
   def killCodeSnippet(self):
@@ -501,18 +515,25 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     self._codeSnippetModel.addCodeSnippet(codeSnippet)
 
   def save(self):
-    dump = self._codeSnippetModel.dump()
-    self.preferences.set("measurementTool.codeSnippets",dump)
+    dump = self._codeSnippetModel.dump(usePickle = True)
+    self.preferences.set("measurementTool.ramps",dump)
+    rampFile = open(params["directories.setup"]+"\\config\\ramps.yaml","w")
+    stringdump = self._codeSnippetModel.dump(usePickle = False)
+    string = yaml.dump(stringdump)
+    rampFile.write(string)
+    rampFile.close()
     self.preferences.save() 
     
   def restore(self):
     try:
-      codeSnippets = self.preferences.get("measurementTool.codeSnippets")
-      self._codeSnippetModel.load(codeSnippets)  
+      ramps = self.preferences.get("measurementTool.ramps")
+      if ramps == None:
+        print "No ramps stored..."
+        return
+      self._codeSnippetModel.load(ramps,usePickle = True)  
     except KeyError:
       print sys.exc_info()
-      print "Error"
-    
+      print "Error"    
   def closeEvent(self,e):
     print "Closing..."
     self.save()

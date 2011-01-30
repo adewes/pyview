@@ -133,13 +133,8 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     self.manager = pyview.helpers.instrumentsmanager.Manager()
     self.setMinimumHeight(200)
     global params
-    #shelvePath = params["directories.setup"]+r"/config/setups.shelve"
-    shelvePath = os.getcwd()+r"/config/setups.shelve"
-    try:
-      self._states = shelve.open(shelvePath)
-    except:
-      print "Unable to open measurement shelve at \"%s\"" % (shelvePath)
-      pass
+    shelvePath = params["directories.setup"]+r"/config/setups.shelve"
+    self._states = shelve.open(shelvePath)
     self.dashboards = dict()
     self.setWindowTitle("Instruments")
     layout = QGridLayout()
