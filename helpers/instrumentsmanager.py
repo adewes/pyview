@@ -103,7 +103,7 @@ class Manager(Subject,Singleton):
  
     self._instruments = dict()
 
-  def saveState(self,stateName,instruments = [],withInitialization = True):
+  def saveState(self,stateName,instruments = []):
     """
     Return a dictionary containing the parameters of all the instruments.
     """
@@ -148,6 +148,7 @@ class Manager(Subject,Singleton):
       try:
         params[name]=self.getInstrument(name).parameters()
       except:
+        print "An error occured when storing the parameters of instrument %s" % name
         pass
     return params
 

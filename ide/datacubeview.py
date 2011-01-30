@@ -11,7 +11,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
 from numpy import complex128
-from pyview.lib.patterns import ObserverWidget
+from pyview.ide.patterns import ObserverWidget
 
 #This is our directory model...
 class DatacubeViewModel(QAbstractItemModel,ObserverWidget):

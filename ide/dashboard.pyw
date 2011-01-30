@@ -5,6 +5,8 @@ import getopt
 import pyview.helpers.instrumentsmanager
 from pyview.lib.classes import *
 
+from PyQt4.QtGui import *
+
 class InstrumentDashboard(QMainWindow):
 
   def reloadInstrument(self):

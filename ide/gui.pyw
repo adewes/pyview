@@ -18,15 +18,15 @@ import pyview.ide.mpl.backend_agg as mpl_backend
 
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
-from codeeditor import *
-from preferences import *
+from pyview.ide.editor.codeeditor import *
+from pyview.ide.preferences import *
 
 import settings
 import datetime
 import time
 import re
 
-from pyview.lib.patterns import ObserverWidget
+from pyview.ide.patterns import ObserverWidget
 from pyview.config.parameters import params
 
 import pyview.helpers.instrumentsmanager
