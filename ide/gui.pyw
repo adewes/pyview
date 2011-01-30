@@ -233,8 +233,7 @@ class IDE(QMainWindow,ObserverWidget):
 
         self.connect(self.BrowserWidget,SIGNAL("doubleClicked(const QModelIndex&)"),self.openFile)
         
-        MyPrefs = Preferences()
-        MyPrefs.init()
+        MyPrefs = Preferences(path = params["directories.setup"]+"\\config\\")
   
         if MyPrefs.get('defaultDir') != None:
           print "Setting default directory to %s" % MyPrefs.get('defaultDir')

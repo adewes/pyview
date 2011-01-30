@@ -12,13 +12,14 @@ class Preferences(Singleton):
   def __init__(self,*args,**kwargs):
     if self._initialized == True:
       return
-    self._initialized = True
     Singleton.__init__(self)
     self.init(*args,**kwargs)
+    self._initialized = True
     
   def init(self,path = None,filename = 'preferences.dat'):
+    print "Initializing preferences..."
     if path == None:
-      path = os.path.normpath(os.path.dirname(__file__)+"\\..\\config")
+      raise Exception("You must specify a directory for storing the application preferences!")
     self._appFolder = path
     if os.path.isdir(self._appFolder) == False:
       os.mkdir(self._appFolder)
