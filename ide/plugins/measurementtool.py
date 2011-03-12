@@ -1,18 +1,14 @@
 import sys
 import getopt
-
-
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4.QtWebKit import *
-from pyview.ide.preferences import *
-from pyview.config.parameters import params
 import pickle
 import cPickle
 import copy
 import yaml
 
-
+from pyview.config.parameters import params
 from pyview.ide.patterns import ObserverWidget
 from pyview.lib.patterns import KillableThread
 from pyview.config.parameters import *
@@ -57,11 +53,11 @@ class CodeSnippet(Subject):
   def fromstring(cls,state,usePickle = True):
     if usePickle:
       return pickle.loads(state)
-    ramp = Ramp()
+    ramp = CodeSnippet()
     ramp.setCodeSnippet(state["codeSnippet"])
     ramp.setName(state["name"])
     for child in state["children"]:
-      ramp.addChild(Ramp.fromstring(child),usePickle = usePickle)
+      ramp.addChild(CodeSnippet.fromstring(child,usePickle = usePickle))
     return ramp
 
   fromstring = classmethod(fromstring)
@@ -115,12 +111,18 @@ class CodeSnippetModel(QAbstractItemModel):
     self._codeSnippetList = []
     self._dropAction = Qt.MoveAction
     self._mimeData = None
+    
+  def headerData(self,section,orientation,role):
+    if section == 1:
+      return QVariant(QString(u"Measurement"))
         
   def dump(self,usePickle = True):
     return {"root":self._root.tostring(usePickle = usePickle)}    
     
   def load(self,params,usePickle = True):
+    self.beginResetModel()
     self._root = CodeSnippet.fromstring(params["root"],usePickle = usePickle)
+    self.endResetModel()
     
   def deleteCodeSnippet(self,index):
     parent = self.parent(index)
@@ -312,15 +314,12 @@ class CodeSnippetTree(QTreeView):
 
   def getContextMenu(self,p):
     menu = QMenu()
-    
     selectedItems = self.selectedIndexes()
-    
     if len(selectedItems) == 1:
       renameAction = menu.addAction("Rename")
       self.connect(renameAction,SIGNAL("triggered()"),self.renameCodeSnippet)
       deleteAction = menu.addAction("Delete")
       self.connect(deleteAction,SIGNAL("triggered()"),self.deleteCodeSnippet)
-      
     menu.exec_(self.viewport().mapToGlobal(p))
     
   def setTool(self,tool):
@@ -360,8 +359,6 @@ class RunWindow(QWidget,ObserverWidget):
     self.runButton = QPushButton("Run")
     self.killButton = QPushButton("Terminate")
 
-    self.codeSnippetName = QLabel("")
-
     codeSnippetButtons.addWidget(self.runButton)
     codeSnippetButtons.addWidget(self.killButton)
     codeSnippetButtons.addStretch()
@@ -370,8 +367,6 @@ class RunWindow(QWidget,ObserverWidget):
     self.connect(self.killButton,SIGNAL("clicked()"),self.killCodeSnippet)
     
     layout = QGridLayout()
-    
-    layout.addWidget(self.codeSnippetName)
     layout.addItem(codeSnippetButtons)
     
     self.setLayout(layout)
@@ -436,8 +431,31 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     
   def onTimer(self):
     self.save()
-      
-  def __init__(self,codeRunner,parent = None):
+    
+  def saveMeasurementsAs(self):
+    filename = QFileDialog.getSaveFileName(filter = "YAML(*.yml *.yaml)")
+    if not filename == '':      
+      self.save(filename)
+      MyMessageBox = QMessageBox()
+      MyMessageBox.setWindowTitle("Success!")
+      MyMessageBox.setText("The measurements have been saved at %s" % filename)
+      MyMessageBox.exec_()
+    
+  def openMeasurements(self):
+    MyMessageBox = QMessageBox()
+    MyMessageBox.setWindowTitle("Warning!")
+    MyMessageBox.setText("Do you really want read the measurements from a file? All unsaved changes will be lost.")
+    yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
+    no = MyMessageBox.addButton("No",QMessageBox.NoRole)
+    MyMessageBox.exec_()
+    choice = MyMessageBox.clickedButton()
+    if choice == no:
+      return
+    filename = QFileDialog.getOpenFileName(filter = "YAML(*.yml *.yaml)")
+    if not filename == '':      
+      self.restore(filename)
+            
+  def __init__(self,codeRunner,preferences,parent = None):
     QMainWindow.__init__(self,parent)
     ObserverWidget.__init__(self)
     
@@ -447,6 +465,16 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     
     self._timer.setInterval(1000*60)
     
+    menuBar = self.menuBar()
+    
+    measurementsMenu = menuBar.addMenu("Measurements")
+    
+    openAction = measurementsMenu.addAction("Open...")
+    saveAsAction = measurementsMenu.addAction("Save As...")
+    
+    self.connect(openAction,SIGNAL("triggered()"),self.openMeasurements)
+    self.connect(saveAsAction,SIGNAL("triggered()"),self.saveMeasurementsAs)
+    
     self._timer.start()
     
     self.connect(self._timer,SIGNAL("timeout()"),self.onTimer)
@@ -455,7 +483,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     
     self._runCodeSnippet = None
   
-    self.preferences = Preferences(filename = "measurementtool")
+    self._preferences = preferences
   
     self.codeSnippetName = QLineEdit()
     self.addCodeSnippetButton = QPushButton("Add CodeSnippet")
@@ -477,7 +505,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
 
     widget = QWidget()
     
-    self.codeSnippetEditor = CodeSnippetEditor()
+    self.codeSnippetEditor = CodeSnippetEditor(preferences = preferences)
     self.codeSnippetTree.setTool(self)
     
     rightLayout = QBoxLayout(QBoxLayout.TopToBottom)
@@ -488,8 +516,8 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     rightLayout.addWidget(self.codeSnippetEditor)
     
     layout = QGridLayout()
-    layout.addWidget(self.codeSnippetTree,0,0,1,1)
-    layout.addLayout(buttonsLayout,1,0,1,1)
+    layout.addLayout(buttonsLayout,0,0,1,1)
+    layout.addWidget(self.codeSnippetTree,1,0,1,1)
     layout.addLayout(rightLayout,0,1,2,1)
     
     self.connect(self.codeSnippetName,SIGNAL("returnPressed()"),self.codeSnippetCreationRequested)
@@ -514,26 +542,26 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     codeSnippet.setName(name)
     self._codeSnippetModel.addCodeSnippet(codeSnippet)
 
-  def save(self):
-    dump = self._codeSnippetModel.dump(usePickle = True)
-    self.preferences.set("measurementTool.ramps",dump)
-    rampFile = open(params["directories.setup"]+"\\config\\ramps.yaml","w")
+  def save(self,path = params["directories.setup"]+"\\config\\ramps.yaml"):
+    rampFile = open(path,"w")
     stringdump = self._codeSnippetModel.dump(usePickle = False)
     string = yaml.dump(stringdump)
     rampFile.write(string)
     rampFile.close()
-    self.preferences.save() 
     
-  def restore(self):
+  def restore(self,path = params["directories.setup"]+"\\config\\ramps.yaml"):
     try:
-      ramps = self.preferences.get("measurementTool.ramps")
+      rampFile = open(path,"r")
+      string = rampFile.read()
+      rampFile.close()
+      ramps = yaml.load(string)
       if ramps == None:
-        print "No ramps stored..."
         return
-      self._codeSnippetModel.load(ramps,usePickle = True)  
+      self._codeSnippetModel.load(ramps,usePickle = False)  
     except KeyError:
       print sys.exc_info()
       print "Error"    
+      
   def closeEvent(self,e):
     print "Closing..."
     self.save()
@@ -558,7 +586,7 @@ class CodeSnippetEditor(QWidget,ObserverWidget):
     if property == "codeSnippet" or all:
       self.root.setCodeSnippet(unicode(self.codeEditor.toPlainText()))
              
-  def __init__(self,parent = None):
+  def __init__(self,preferences,parent = None):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     self.root = None
@@ -569,13 +597,10 @@ class CodeSnippetEditor(QWidget,ObserverWidget):
     
     codeSnippetLayout = QGridLayout()
         
-    layout.addWidget(QLabel("CodeSnippet"))
     layout.addWidget(self.codeEditor)
-    
     self.connect(self.codeEditor,SIGNAL("textChanged()"),lambda property = "codeSnippet":self.updateCodeSnippetProperty(property))
-    
     self.codeEditor.activateHighlighter()
-    self.preferences = Preferences()
+    self._preferences = preferences
     self.updateCodeSnippetInfo()
     self.setLayout(layout)
     

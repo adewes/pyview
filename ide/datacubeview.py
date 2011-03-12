@@ -29,6 +29,9 @@ class DatacubeViewModel(QAbstractItemModel,ObserverWidget):
     QAbstractItemModel.__init__(self)
     ObserverWidget.__init__(self)
     self.setDatacube(cube)
+    
+  def datacube(self):
+    return self._cube
   
   def setDatacube(self,cube):
     if hasattr(self,'_cube') and self._cube != None:
@@ -121,6 +124,23 @@ class DatacubeTableView(QTableView):
   def setDatacube(self,cube):
     self.dirModel.setDatacube(cube)
     self.dirModel.reset()
+    self.setContextMenuPolicy(Qt.CustomContextMenu)
+    self.connect(self, SIGNAL("customContextMenuRequested(const QPoint &)"), self.getContextMenu)
+
+  def removeRow(self):
+    indices = self.selectedIndexes()
+    rows = []
+    for index in indices:
+      rows.append(index.row())
+    self.dirModel.datacube().removeRows(rows)
+
+  def getContextMenu(self,p):
+    menu = QMenu()
+    selectedItems = self.selectedIndexes()
+    if len(selectedItems) >= 1:
+      removeAction = menu.addAction("Remove selected rows")
+      self.connect(removeAction,SIGNAL("triggered()"),self.removeRow)
+    menu.exec_(self.viewport().mapToGlobal(p))
 
   def __init__(self,cube = None,parent = None):
     QTableView.__init__(self,parent)
@@ -132,7 +152,6 @@ class DatacubeTableView(QTableView):
     self.setAutoScroll(True)
     self.setEditTriggers(QAbstractItemView.AnyKeyPressed | QAbstractItemView.SelectedClicked | QAbstractItemView.DoubleClicked)
     self.setSelectionMode(QAbstractItemView.ContiguousSelection)
-
     self.connect(self,SIGNAL("doubleClicked(QModelIndex)"),self.doubleClicked)
 
   def doubleClicked(self,index):

@@ -99,7 +99,8 @@ class Subject:
         for observer in self._observers:
             if modifier != observer():
                 try:
-                  observer().updated(self,property,value)
+                  if hasattr(observer(),'updated'):
+                    observer().updated(self,property,value)
                 except:
                   print "An error occured when notifying observer %s." % str(observer())
                   print sys.exc_info()

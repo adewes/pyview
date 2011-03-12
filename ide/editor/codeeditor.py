@@ -130,15 +130,15 @@ class CodeEditorWindow(QWidget):
         self.newEditor()
         
     def saveTabState(self):
-      MyPrefs = Preferences()
       openFiles = list()
       for i in range(0,self.Tab.count()):
         widget = self.Tab.widget(i)
         if widget.fileName() != None:
-          print widget.fileName()
           openFiles.append(widget.fileName())
-      MyPrefs.set('openFiles',openFiles)
-      MyPrefs.save()
+      if self.preferences() == None:
+        return
+      self.preferences().set('openFiles',openFiles)
+      self.preferences().save()
         
     def closeEvent(self,e):
       self.saveTabState()
@@ -163,13 +163,17 @@ class CodeEditorWindow(QWidget):
       
     def codeRunner(self):
       return self._codeRunner
+      
+    def preferences(self):
+      return self._preferences
 
-    def __init__(self,parent=None,gv = dict(),lv = dict(),codeRunner = CodeRunner()):
+    def __init__(self,parent=None,gv = dict(),lv = dict(),codeRunner = CodeRunner(),preferences = None):
         self.editors = []
         self.count = 1
         self._gv = gv
         self._lv = lv
         self._codeRunner = codeRunner
+        self._preferences = preferences
         QWidget.__init__(self,parent)
 
         MyLayout = QGridLayout()
@@ -192,15 +196,14 @@ class CodeEditorWindow(QWidget):
 
         self.Tab.setTabsClosable(True)
         self.connect(self.Tab,SIGNAL("tabCloseRequested(int)"),self.closeTab)
-
-        MyPrefs = Preferences()
-        openFiles = MyPrefs.get('openFiles')
-        if openFiles != None:
-          for file in openFiles:
-            editor = self.newEditor()
-            editor.openFile(file)  
-        else:
-          self.newEditor()
+        if not self.preferences() == None:
+          openFiles = self.preferences().get('openFiles')
+          if openFiles != None:
+            for file in openFiles:
+              editor = self.newEditor()
+              editor.openFile(file)  
+          else:
+            self.newEditor()
         MyLayout.addWidget(self.Tab,0,0)
         MyLayout.addLayout(commandLayout,1,0)
 
@@ -434,6 +437,10 @@ class CodeEditor(LineTextWidget):
         return True
         
     def updateTab(self):
+     filename = '[not saved]'
+     if self.fileName() != None:
+        self._tabToolTip = self.fileName()
+        filename = os.path.basename(self.fileName())
      if self._tabWidget != None:
         changed_text = ""
         running_text = ""
@@ -443,10 +450,6 @@ class CodeEditor(LineTextWidget):
           running_text = "[failed]"
         if self._Changed == True:
           changed_text = "*"  
-        filename = '[not saved]'
-        if self.fileName() != None:
-          self._tabToolTip = self.fileName()
-          filename = os.path.basename(self.fileName())
         self._tabWidget.setTabText(self._tabWidget.indexOf(self),running_text+changed_text+filename)
         self._tabWidget.setTabToolTip(self._tabWidget.indexOf(self),changed_text+self.tabToolTip())
     

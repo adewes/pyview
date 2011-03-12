@@ -73,6 +73,14 @@ class LogProxy:
 
 class Log(LineTextWidget):
 
+    """
+    Log text window.
+    
+    To do:
+      -Add a context menu with a "clear all" menu entry
+      -Add a search function
+    """
+
     def __init__(self,parent = None ):
         LineTextWidget.__init__(self,parent)
         MyFont = QFont("Courier",10)
@@ -135,6 +143,13 @@ class Log(LineTextWidget):
         
 class IDE(QMainWindow,ObserverWidget):
 
+    """
+    The main code IDE
+    
+    To do:
+      -Add standard menu entries (edit, view, etc...)
+      -Add explicit support for plugins
+    """
 
     def fileBrowser(self):
       return self.FileBrowser
@@ -142,27 +157,31 @@ class IDE(QMainWindow,ObserverWidget):
     def directory(self):
       return self.FileBrowser.directory()
 
-  
     def closeEvent(self,e):
+      MyMessageBox = QMessageBox()
+      MyMessageBox.setWindowTitle("Warning!")
+      MyMessageBox.setText("Do you really want to close the IDE?")
+      yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
+      no = MyMessageBox.addButton("No",QMessageBox.NoRole)
+      MyMessageBox.exec_()
+      choice = MyMessageBox.clickedButton()
+      if choice == no:
+        e.ignore()
+        return
       self.Editor.closeEvent(e)  
       
-    def void(self):
-      pass
-
+    def preferences(self):
+      if not hasattr(self,'_preferences'):
+        self._preferences = Preferences(path = params["directories.setup"]+"\\config\\")
+      return self._preferences
 
     def changeWorkingPath(self):
-#      self.dirModel.set()
-
       path = self.dirModel.filePath(self.BrowserWidget.currentIndex())
-
       if path == '':
         return
-      os.chdir(unicode(path))
-
-      MyPrefs = Preferences()
-      MyPrefs.set('defaultDir',path)
-      MyPrefs.save()
-
+      os.chdir(unicode(path)) 
+      self.preferences().set('defaultDir',path)
+      self.preferences().save()
       self.workingPathLabel.setText("Working path:"+os.getcwd())
         
     def onTimer(self):
@@ -180,12 +199,7 @@ class IDE(QMainWindow,ObserverWidget):
     def setupCodeEnvironment(self):
 
       print "Setting up code environment..."
-      
-      if hasattr(self,"_initThread"):
-        if self._initThread.isRunning():
-          print "Waiting for init thread to terminate..."
-          return
-            
+                  
       startupPath = params["directories.setup"]+"/config/startup.py"
       if os.path.exists(startupPath):   
         startupFile = open(startupPath,"r")
@@ -198,9 +212,6 @@ class IDE(QMainWindow,ObserverWidget):
       index = self.dirModel.index(path,0)
       if index != QModelIndex():
         self.BrowserWidget.setCurrentIndex(index)
-      
-    def showEvent(self,e):
-      QMainWindow.showEvent(self,e)
       
     def codeRunner(self):
       return self._codeRunner
@@ -226,18 +237,17 @@ class IDE(QMainWindow,ObserverWidget):
         
         self.dirModel = QFileSystemModel()
         self.dirModel.setRootPath("")
+        self.dirModel.setFilter(QDir.AllDirs | QDir.Drives | QDir.NoDotAndDotDot)
 #        self.dirModel.setReadOnly(False)
         
         self.BrowserWidget.setModel(self.dirModel)
         self.BrowserWidget.header().resizeSection(0,300)
 
         self.connect(self.BrowserWidget,SIGNAL("doubleClicked(const QModelIndex&)"),self.openFile)
-        
-        MyPrefs = Preferences(path = params["directories.setup"]+"\\config\\")
-  
-        if MyPrefs.get('defaultDir') != None:
-          print "Setting default directory to %s" % MyPrefs.get('defaultDir')
-          self.changeDirectory(MyPrefs.get('defaultDir'))
+          
+        if self.preferences().get('defaultDir') != None:
+          print "Setting default directory to %s" % self.preferences().get('defaultDir')
+          self.changeDirectory(self.preferences().get('defaultDir'))
 
         self.MyLog = Log()
         
@@ -247,7 +257,7 @@ class IDE(QMainWindow,ObserverWidget):
         gv = dict()
 
         self._codeRunner = CodeRunner(gv = gv,lv = gv)
-        self.Editor = CodeEditorWindow(codeRunner = self._codeRunner)
+        self.Editor = CodeEditorWindow(codeRunner = self._codeRunner,preferences = self.preferences())
         self.errorConsole = ErrorConsole(codeEditorWindow = self.Editor,codeRunner = self._codeRunner)
         
         self.tabs = QTabWidget()
@@ -309,17 +319,11 @@ class IDE(QMainWindow,ObserverWidget):
         FileMenu.addSeparator()  
 
         self.editMenu = self.MyMenuBar.addMenu("Edit")
-
         self.viewMenu = self.MyMenuBar.addMenu("View")
-
         self.toolsMenu = self.MyMenuBar.addMenu("Tools")
-
         self.settingsMenu = self.MyMenuBar.addMenu("Settings")
-
         self.windowMenu = self.MyMenuBar.addMenu("Window")
-
         self.helpMenu = self.MyMenuBar.addMenu("Help")
-        
         self.MyToolbar = self.addToolBar("Tools")
         
         newFile = self.MyToolbar.addAction(newIcon,"New")
@@ -359,8 +363,8 @@ class IDE(QMainWindow,ObserverWidget):
         self.timer.start()
         
                 
-        self.errorProxy = LogProxy(self.MyLog.writeStderr,"error.log")
-        self.eventProxy = LogProxy(self.MyLog.writeStdout,"event.log")
+        self.errorProxy = LogProxy(self.MyLog.writeStderr)
+        self.eventProxy = LogProxy(self.MyLog.writeStdout)
 
         self.changeWorkingPath()
                 

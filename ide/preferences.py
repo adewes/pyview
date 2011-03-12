@@ -5,19 +5,9 @@ import os
 import os.path
 import shelve
 
-class Preferences(Singleton):
+class Preferences():
 
-  _initialized = False
-
-  def __init__(self,*args,**kwargs):
-    if self._initialized == True:
-      return
-    Singleton.__init__(self)
-    self.init(*args,**kwargs)
-    self._initialized = True
-    
-  def init(self,path = None,filename = 'preferences.dat'):
-    print "Initializing preferences..."
+  def __init__(self,path = None,filename = 'preferences.dat'):
     if path == None:
       raise Exception("You must specify a directory for storing the application preferences!")
     self._appFolder = path
@@ -43,7 +33,6 @@ class Preferences(Singleton):
     pass
     
   def __del__(self):
-    print "Saving preferences..."
     self.save()
     
   def save(self):

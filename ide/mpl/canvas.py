@@ -67,6 +67,7 @@ class MyMplCanvas(FigureCanvas):
       if event.button == 1:
         self._pressed = True
         self._pressEvent = event
+        self._moveEvent = event
     
     def extraCode(self):
       return self._extraCode
@@ -80,14 +81,33 @@ class MyMplCanvas(FigureCanvas):
       lv = self.__dict__
       exec(self._extraCode,lv,lv)
       
+    def leaveEvent(self,e):
+      FigureCanvas.leaveEvent(self,e)
+      self._pressed = False
+      self.update()
+      
     def mouseMoveEvent(self,e):
       try:
         FigureCanvas.mouseMoveEvent(self,e)
       except:
         pass
-             
+        
+    def paintEvent(self,e):
+      FigureCanvas.paintEvent(self,e)
+      if self._pressed:
+        painter = QPainter(self)
+        painter.setPen(QPen(Qt.DotLine))
+        (x1,y1) = self.figure.transFigure.inverted().transform([self._pressEvent.x,self._pressEvent.y])
+        (x2,y2) = self.figure.transFigure.inverted().transform([self._moveEvent.x,self._moveEvent.y])
+        painter.drawRect(x1*self.width(),(1-y1)*self.height(),(x2-x1)*self.width(),-(y2-y1)*self.height())
+
     def onMove(self,event):
       self._moveLabel.show()
+
+      if self._pressed:
+        self._moveEvent = event
+        self.update()
+
       if event.xdata == None:
         self._moveLabel.hide()
         return
@@ -142,6 +162,7 @@ class MyMplCanvas(FigureCanvas):
         while os.path.exists(filename):
           filename = baseName+ "_%d.pdf" % cnt
           cnt+=1
+        (w,h) = self._fig.get_size_inches()
         try:
           services = QDesktopServices()
           if not filename == '':
@@ -150,7 +171,8 @@ class MyMplCanvas(FigureCanvas):
             url = QUrl("file:///%s" % filename)
             services.openUrl(url)
         finally:
-          pass
+            self._fig.set_size_inches( w,h )
+            self.draw()
       elif action == propertiesAction:
         try:
           reload(sys.modules["pyview.lib.canvas"])
@@ -175,29 +197,33 @@ class MyMplCanvas(FigureCanvas):
       self.axes.relim() 
       self.axes.autoscale_view()
       self.draw()
+      
+    def onPaint(self,painter):
+      print "painting..."
     
                           
     def onRelease(self,event):
       if event.button == 1:
         self._pressed = False
-        if self._pressEvent.xdata == None or event.xdata == None:
-          return
         oldRect = QRectF()
         oldRect.setLeft(self.axes.get_xlim()[0])
         oldRect.setRight(self.axes.get_xlim()[1])
         oldRect.setBottom(self.axes.get_ylim()[0])
         oldRect.setTop(self.axes.get_ylim()[1])
         rect = QRectF()
-        rect.setLeft(min(self._pressEvent.xdata,event.xdata))
-        rect.setRight(max(self._pressEvent.xdata,event.xdata))
-        rect.setBottom(min(self._pressEvent.ydata,event.ydata))
-        rect.setTop(max(self._pressEvent.ydata,event.ydata))
+
+        (x1,y1) = self.axes.transData.inverted().transform([self._pressEvent.x,self._pressEvent.y])
+        (x2,y2) = self.axes.transData.inverted().transform([event.x,event.y])
+
+        rect.setLeft(min(x1,x2))
+        rect.setRight(max(x1,x2))
+        rect.setBottom(min(y1,y2))
+        rect.setTop(max(y1,y2))
         if fabs(rect.width()) >= 0.01*fabs(oldRect.width()) and fabs(rect.height()) >=fabs(0.01*oldRect.height()):
           self.zoomTo(rect)
     
     """Ultimately, this is a QWidget (as well as a FigureCanvasAgg, etc.)."""
     def __init__(self, parent=None, width=5, height=5, dpi=60):
-
 
         fig = Figure(figsize=(width, height), dpi=dpi)
         self._fig = fig
@@ -205,11 +231,12 @@ class MyMplCanvas(FigureCanvas):
         self._width = width
         self._height = height
         self._dpi = dpi
+        self._pressed = False
 
         FigureCanvas.__init__(self, fig)
         
-        self.setFixedWidth(self._dpi*self._width)
-        self.setFixedHeight(self._dpi*self._height)
+#        self.setFixedWidth(self._dpi*self._width)
+#        self.setFixedHeight(self._dpi*self._height)
         
         self._isDrawing = False
         self._extraCode = """#axes.set_title("test")

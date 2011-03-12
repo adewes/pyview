@@ -32,14 +32,6 @@ class Instrument(ThreadedDispatcher,Reloadable,object):
   def __init__(self,name = ""):
     Subject.__init__(self)
     ThreadedDispatcher.__init__(self)
- 
-    self.__notify_queue = []
-    self.__stop = False
-    self.__time = 0
-    self._timeout = 10.0
-    self.__dt = 0.1
-    self.__status_str = " "
-    self.__error_str = " "
     self._name = name
     self._states = []
     self._stateCount = 0
@@ -75,18 +67,6 @@ class Instrument(ThreadedDispatcher,Reloadable,object):
     """
     pass
     
-  def setTimeout(self,to):
-    """
-    Modifies the operation timout.
-    """
-    self._timeout = to
-    
-  def timeout(self):
-    """
-    Returns the operation timeout.
-    """
-    return self._timeout
-
   def name(self):
     return self._name
   
@@ -95,21 +75,7 @@ class Instrument(ThreadedDispatcher,Reloadable,object):
     Redefine this function to return all relevant instrument parameters in a dictionary.
     """
     return dict()
-    
-  def restoreParameters(self,params):
-    """
-    Redefine this function to restore a given instrument state based on a number of given parameters.
-    """
-    pass
-    
-  def statusStr(self,string):
-    self.__status_str = string
-    self.notify("status_str",self.__status_str)
-    
-  def errorStr(self,string):
-    self.__error_str = string
-    self.notify("error_str",self.__error_str)
-  
+          
 class VisaInstrument(Instrument):
 
     """

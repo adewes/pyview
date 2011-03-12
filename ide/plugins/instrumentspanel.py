@@ -11,7 +11,42 @@ import shelve
 import pyview.helpers.instrumentsmanager
 from pyview.ide.patterns import ObserverWidget
 from pyview.ide.dashboard import InstrumentDashboard
-from pyview.config.parameters import *
+from pyview.config.parameters import params
+
+"""
+Define the parameters and init functions of the plugin in the following dictionary.
+"""
+
+def restartPlugin(ide,*args,**kwargs):
+  """
+  This function restarts the plugin
+  """
+  if hasattr(ide,"instrumentsTab"):
+    ide.tabs.removeTab(ide.tabs.indexOf(ide.instrumentsTab))
+  instrumentsTab = InstrumentsPanel()
+  ide.instrumentsTab = instrumentsTab
+  ide.tabs.addTab(instrumentsTab,"Instruments")
+  ide.tabs.setCurrentWidget(instrumentsTab)
+
+def startPlugin(ide,*args,**kwargs):
+  """
+  This function starts the plugin
+  """
+  settingsMenu = ide.settingsMenu
+  reloadInstrumentsTabEntry = settingsMenu.addAction("Reload Instruments Tab")
+  ide.connect(reloadInstrumentsTabEntry,SIGNAL("triggered()"),lambda : reloadInstrumentsTab(ide))
+  restartPlugin(ide,*args,**kwargs)
+
+
+plugin = dict()
+plugin["name"] = "Instruments Panel"
+plugin["version"] = "1.0"
+plugin["author.name"] = "Andreas Dewes"
+plugin["author.email"] = "andreas.dewes@gmail.com"
+plugin["functions.start"] = startPlugin
+plugin["functions.stop"] = None
+plugin["functions.restart"] = restartPlugin
+plugin["functions.preferences"] = None
 
 class InstrumentsArea(QMainWindow,ObserverWidget):
 
@@ -106,16 +141,16 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     self.updateStateList()
     
   def saveSetup(self):
-    selected = self.instrumentlist.selectedItems()
-    selectedNames = map(lambda x:str(x.text(0)),selected)
-    print selectedNames
     name = str(self.setupList.currentText())
+
     #Sanitize the name of the setup...
     valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
     name = ''.join(c for c in name if c in valid_chars)
+
     if name == "":
       return
-    state = self.manager.saveState(name,selectedNames)
+
+    state = self.manager.saveState(name)
     self._states[name] = state
     self._states.sync()
     self.updateStateList()
@@ -132,7 +167,6 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     self._instrumentsArea = InstrumentsArea()
     self.manager = pyview.helpers.instrumentsmanager.Manager()
     self.setMinimumHeight(200)
-    global params
     shelvePath = params["directories.setup"]+r"/config/setups.shelve"
     self._states = shelve.open(shelvePath)
     self.dashboards = dict()

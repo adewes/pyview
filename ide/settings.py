@@ -10,7 +10,7 @@ import pyview.ide.dataviewer
 
 def showMeasurementTool(guiWindow):
   reload(sys.modules["pyview.ide.plugins.measurementtool"])
-  tool = pyview.ide.plugins.measurementtool.MeasurementTool(codeRunner = guiWindow.codeRunner())
+  tool = pyview.ide.plugins.measurementtool.MeasurementTool(preferences = guiWindow.preferences(),codeRunner = guiWindow.codeRunner())
   tool.show()
   guiWindow._measurementTool = tool
   

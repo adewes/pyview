@@ -103,7 +103,7 @@ class Manager(Subject,Singleton):
  
     self._instruments = dict()
 
-  def saveState(self,stateName,instruments = []):
+  def saveState(self,stateName,instruments = [],withInitialization = True):
     """
     Return a dictionary containing the parameters of all the instruments.
     """
@@ -332,3 +332,6 @@ class Manager(Subject,Singleton):
     
   def instruments(self):
     return self._instruments
+    
+  def instrumentNames(self):
+    return self._instruments.keys()
