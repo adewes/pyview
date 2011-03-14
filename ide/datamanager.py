@@ -66,7 +66,8 @@ class Plot2DWidget(QWidget,ObserverWidget):
       return
     xnames = []
     ynames = []
-    titles = []
+    title = self._plots[0].cube.name()
+    legend = []
     for plot in self._plots:
       plot.lines.set_xdata(plot.cube.column(plot.xname))
       plot.lines.set_ydata(plot.cube.column(plot.yname))
@@ -74,8 +75,8 @@ class Plot2DWidget(QWidget,ObserverWidget):
         xnames.append(plot.xname)
       if not plot.yname in ynames:
         ynames.append(plot.yname)
-      if not plot.cube.name() in titles:
-        titles.append(plot.cube.name())
+      if not plot.cube.filename() in legend:
+        legend.append(plot.cube.filename())
       #This is a bug in matplotlib. We have to call "recache" to make sure that the plot is correctly updated.
       plot.lines.recache()
     if self.canvas.axes.get_autoscale_on() == True:
@@ -84,7 +85,9 @@ class Plot2DWidget(QWidget,ObserverWidget):
 
     self.canvas.axes.set_xlabel(", ".join(xnames))
     self.canvas.axes.set_ylabel(", ".join(ynames))
-    self.canvas.axes.set_title(", ".join(titles))
+    self.canvas.axes.set_title(title)
+    from matplotlib.font_manager import FontProperties
+    self.canvas.axes.legend(legend,prop = FontProperties(size = 6))
     self.canvas.draw()
 
   def addPlot(self,xName=None,yName=None):
@@ -145,8 +148,7 @@ class Plot2DWidget(QWidget,ObserverWidget):
       self.yNames.addItem(name,name)
       
   def updatedGui(self,subject = None,property = None,value = None):
-    if property == "commit":
-      self._updated = False
+    self._updated = False
     if property == "names":
       if subject == self._cube:
         self.updateNames(value)
@@ -581,6 +583,11 @@ class DataManager(QMainWindow,ObserverWidget):
     self.tabs.addTab(self.datacubeViewer,"Table View")
     self.selectCube(None,None)
 
+def startDataManagerThread():
+  thread = DataManagerThread()
+  thread.setDaemon(False)
+  thread.start()
+
 def startDataManager(qApp = None):
   if qApp == None:
     qApp = QApplication(sys.argv)
@@ -592,7 +599,7 @@ QTreeView:Item {padding:6;}
   qApp.connect(qApp, SIGNAL('lastWindowClosed()'), qApp,
                     SLOT('quit()'))
   dataManager = DataManager()
-  dataManager.showMaximized()
+  dataManager.show()
   qApp.exec_()
   
   print "Exiting..."
@@ -606,6 +613,4 @@ class DataManagerThread(threading.Thread):
     startDataManager(None)
           
 if __name__ == '__main__':
-  thread = DataManagerThread()
-  thread.setDaemon(False)
-  thread.start()
+  starDataManagerThread()
