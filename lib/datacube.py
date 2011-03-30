@@ -15,10 +15,24 @@ import string
 
 from pyview.lib.patterns import Subject,Observer,Reloadable
 
+class ChildItem:
+  
+  def __init__(self,datacube,attributes):
+    self._datacube = datacube
+    self._attributes = attributes
+
+  def datacube(self):
+    return self._datacube
+    
+  def attributes(self):
+    return self._attributes
+    
 #This is a hirarchical data storage class. A datacube stores a 2-dimensional array of values. Each array len(self._table[self._index,:])) is identified by a name. In addition, you can add one or more "child datacubes" to each row of the array, thus creating a multidimensional data model.
 class Datacube(Subject,Observer,Reloadable):
 
-  version = "0.1"
+  defaults = dict()
+
+  version = "0.2"
   
   def __init__(self,*args,**kwargs):
     Subject.__init__(self)
@@ -26,14 +40,16 @@ class Datacube(Subject,Observer,Reloadable):
     Reloadable.__init__(self)
     self.initDatacube(*args,**kwargs)
     
-  def initDatacube(self,name = "datacube",description = "",filename = None,dtype = float64):
+  def initDatacube(self,name = "datacube",description = "",filename = None,dtype = float64,defaults = None):
     self._meta = dict()
+    if defaults == None:
+      defaults = Datacube.defaults
+    self._meta["defaults"] = defaults
     self._meta["filename"] = filename
     self._meta["name"] = name
     self._meta["fieldNames"] = []
     self._meta["description"] = description
     self._meta["fieldMap"] = dict()
-    self._meta["children"] = dict()
     self._meta["parameters"] = dict()
     self._meta["index"] = 0
     self._meta["tags"] = ""
@@ -42,14 +58,14 @@ class Datacube(Subject,Observer,Reloadable):
     self._meta["modificationTime"] = time.asctime()
     self._meta["creationTime"] = time.asctime()
     
-    self._children = dict()
+    self._children = []
     self._parameters = dict()
     self._table = None
     self._parent = None
     
     self._changed = False
     self._unsaved = True
-    self.adjustTable()
+    self._adjustTable()
     
   def parent(self):
     return self._parent
@@ -122,10 +138,14 @@ class Datacube(Subject,Observer,Reloadable):
     Returns a string describing the structure of the datacube
     """
     string = tabs+"cube(%d,%d)" % (self._meta["length"],len(self._meta["fieldNames"]))+"\n"
-    for key in self._children:
-      string+=tabs+"%d children at row %d:" % (len(self._children[key]),key)+"\n"
-      for child in self._children[key]:
-        string+=child.structure(tabs+"\t")
+    for item in self._children:
+      child = item.datacube()
+      attributes = item.attributes()
+      parts = []
+      for key in attributes:
+        parts.append((" %s = " % str(key))+str(attributes[key]))
+      string+=", ".join(parts)+":\n"
+      string+=child.structure(tabs+"\t")
     return string
    
   def columns(self,names):
@@ -152,8 +172,31 @@ class Datacube(Subject,Observer,Reloadable):
     """
     if name in self._meta["fieldMap"]:
       return self._table[:self._meta["length"],self._meta["fieldMap"][name]]
+    return None
 
-  def adjustTable(self):
+  def removeColumn(self,name):
+    if not name in self._meta["fieldNames"]:
+      return
+
+    oldTable = self.table()
+    col = self._meta["fieldMap"][name]
+
+    del self._meta["fieldNames"][self._meta["fieldNames"].index(name)]
+    del self._meta["fieldMap"][name]
+
+    self._table = None
+    self._adjustTable()
+
+    mlen = min(len(self._table),len(oldTable))
+    self._table[:mlen,:col] = oldTable[:mlen,:col]
+    self._table[:mlen,col:] = oldTable[:mlen,col+1:]
+    self.notify("commit",self._meta["index"])
+    
+  def removeColumns(self,names):
+    for name in names:
+      self.removeColumn(name)
+
+  def _adjustTable(self):
     """
     Resizes the table, if necessary
     """
@@ -238,6 +281,12 @@ class Datacube(Subject,Observer,Reloadable):
         self._table[self._meta["index"],i] = 0
     self.notify("clearRow")
   
+  def setColumn(self,*args,**kwargs):
+    """
+    Alias for createColumn...
+    """
+    return self.createColumn(*args,**kwargs)
+  
   def createColumn(self,name,values,offset = 0):
     """
     Creates a new column
@@ -249,17 +298,15 @@ class Datacube(Subject,Observer,Reloadable):
       self.commit()
     self.goTo(index)
 
-  def setAt(self,index,**keywords):
+  def setAt(self,index,**keys):
     """
     Sets a set of variables at a given index
     """
-    if index >= len(self):  
-      raise Exception("setAt: index (%d) is out of bounds!" % index)
     oldIndex = self._meta["index"]
     self._meta["index"] = index
-    self.set(**keywords)
+    self.set(**keys)
+    self.commit()
     self._meta["index"] = oldIndex
-    self.notify("commit",index)
 
   def sortBy(self,column,reverse = False):
     """
@@ -269,120 +316,118 @@ class Datacube(Subject,Observer,Reloadable):
     indices = zip(col,range(0,len(col)))
     sortedValues,sortedIndices = zip(*sorted(indices,reverse = reverse))
     self._table = self._table[sortedIndices,:]
-    newChildren = dict()
-    for i in range(0,len(sortedIndices)):
-      if sortedIndices[i] in self._children:
-        children = []
-        children.extend(self._children[sortedIndices[i]])
-        self.removeChildren(children)
-        newChildren[i] = children
-    for key in newChildren:
-      for child in newChildren[key]:
-        self.addChildAt(key,child)
+    #To do: Add sorting of children!?
     self.notify("sortBy",column)
 
-  def addVariables(self,variables):
-    for var in variables:  
-      self._meta["fieldNames"].append(var)
-    self.adjustTable()
-
-  def set(self,**keywords):
+  def set(self,**keys):
     """
     Sets a pair of variables in the current row
     """
     currentShape = shape(self._table)
     if self._meta["index"] >= currentShape[0]:
       self._resize((self._meta["index"]+10001,len(self._meta["fieldNames"])))
-    for keyword in keywords:
-      i = self._meta["fieldMap"].get(keyword)
+    for key in keys:
+      i = self._meta["fieldMap"].get(key)
       if i == None:
-        self._meta["fieldNames"].append(keyword)
-        self.adjustTable()
-        i = self._meta["fieldMap"].get(keyword)
-      self._table[self._meta["index"],i] = keywords[keyword]
+        self._meta["fieldNames"].append(key)
+        self._adjustTable()
+        i = self._meta["fieldMap"].get(key)
+      self._table[self._meta["index"],i] = keys[key]
+    
+  def removeRow(self,row):
+    """
+    Removes a given row from the datacube.
+    """
+    if row < len(self)-1:
+      self._table[row:-1,:] = self._table[row+1:,:]
+    self._meta["length"] -= 1
+    if self._meta["index"] >= row:
+      self._meta["index"]-=1
+    self.notify("removeRow",row)
+      
   
   def removeRows(self,rows):
     """
     Removes a list of rows from the datacube.
     """
-    if rows == None:
-      return
     sortedRows = sorted(rows)
-    while len(sortedRows) > 0:
-      row = sortedRows.pop()
-      if row >= self._meta["length"]:
-        continue
-      if row in self._children:
-        self.removeChildren(self._children[row])
-      for childRow in self._children.keys():
-        if childRow > row:
-          self._children[childRow-1] = self._children[childRow]
-          del self._children[childRow]
-      if row < len(self)-1:
-        self._table[row:-1,:] = self._table[row+1:,:]
-      self._meta["length"] -= 1
-      self._meta["index"]-=1
-      
+    for row in sortedRows:
+      self.removeRow(row)
+    
     
   def removeChildren(self,cubes):
     for cube in cubes:
       self.removeChild(cube)
   
-  def removeChild(self,cube,eraseChild = False):
+  def removeChild(self,child,eraseChild = False):
     """
     Removes a given child cube from the datacube
     """
-    for index in self._children.keys():
-      for child in self._children[index]:
-        if child == cube:
-          self.notify("removeChild",child)
-          i = self._children[index].index(child)
-          del self._children[index][i]
+    for item in self._children:
+      if item.datacube() == child:
+        item.datacube().setParent(None)
+        del self._children[self._children.index(item)]
+        self.notify("removeChild",item.datacube())
+        return
   
-  def addChildAt(self,row,cube):
+  def addChild(self,cube,**kwargs):
     """
     Adds a child to the datacube
     """
-    if row in self._children:
-      self._children[row].append(cube)
-    else:
-      self._children[row] = [cube]
+    if cube in self.children():
+      raise Exception("Datacube is already a child!")
+    attributes = kwargs
+    if not "row" in attributes:
+      attributes["row"] = self.index()
+    item = ChildItem(cube,attributes)
+    if cube.parent() != None:
+      cube.parent().removeChild(cube)
+    cube.setParent(self)
+    self._children.append(item)
     self.notify("addChild",cube)
     self.setModified()
-  
-  #Appends a child datacube to the current datapoints. This allows for the efficient storage of hirarchical data.
-  def addChild(self,cube):
-    self.addChildAt(self._meta["index"],cube)
-    
+      
   def setModified(self):
     """
     Marks the datacube as modified
     """
     self._meta["modificationTime"] = time.asctime()
     self._unsaved = True
-    
 
-  def children(self):
+  def attributesOfChild(self,child):
+    if child in map(lambda x:x.datacube(),self._children):
+      i = map(lambda x:x.datacube(),self._children).index(child)
+      return self._children[i].attributes()
+    raise AttributeError("Child not found!")
+    
+  def setChildAttributes(self,child,**kwargs):
+    attributes = self.attributesOfChild(child)
+    for key in kwargs:
+      attributes[key] = kwargs[key]
+
+  def children(self,**kwargs):
     """
     Returns the children dictionary of the daacube
     """
-    return self._children
+    if kwargs == {}:
+      return map(lambda x:x.datacube(),self._children)
+    else:
+      children = []
+      for item in self._children:
+        deviate = False
+        for key in kwargs:
+          if (not key in item.attributes()) or item.attributes()[key] != kwargs[key]:
+            deviate = True
+            continue
+        if not deviate:
+          children.append(item.datacube())
+      return children             
     
   def __getitem__(self,keys):
     if not hasattr(keys,'__iter__'):
       keys = [keys]
     return self.columns(keys)
-    
-    
-  def allChildren(self):
-    """
-    Returns all the children of the datacube
-    """
-    children = []
-    for child in self._children.keys():
-      children.extend(self._children[child])
-    return children
-    
+        
   def setChanged(self,changed = False):
     """
     Marks the datacube as changed
@@ -402,12 +447,11 @@ class Datacube(Subject,Observer,Reloadable):
     names = self._meta["fieldNames"]
     if includeChildren == False:
       return names
-    for cubes in self._children.values():
-      for cube in cubes:
-        subnames = cube.names()
-        for subname in subnames:
-          if not subname in names:
-           names.append(subname)
+    for cube in map(lambda x:x.datacube(),self._children):
+      subnames = cube.names()
+      for subname in subnames:
+        if not subname in names:
+         names.append(subname)
     return names
   
   def _resize(self,size):
@@ -420,11 +464,11 @@ class Datacube(Subject,Observer,Reloadable):
     """
     Commits a new line to the datacube
     """
-    self.notify("commit",self._meta["index"])
+    if self._meta["index"] >= self._meta["length"]:
+      self._meta["length"] = self._meta["index"]+1
     self.setModified()
+    self.notify("commit",self._meta["index"])
     self._meta["index"]+=1
-    if self._meta["index"] > self._meta["length"]:
-      self._meta["length"] = self._meta["index"]
     
   def __len__(self):
     """
@@ -440,7 +484,6 @@ class Datacube(Subject,Observer,Reloadable):
     contents = file.read()
     file.close()
     lines = contents.split("\n")
-    i = 0
     if guessStructure:
       self._meta["fieldNames"] = lines[0].split(delimiter)
       self._meta["length"] = len(lines)-1
@@ -448,19 +491,29 @@ class Datacube(Subject,Observer,Reloadable):
         self._meta["dataType"] = float64
       else:
         self._meta["dataType"] = complex128
-    self._table = zeros((self._meta["length"],len(self._meta["fieldNames"])),dtype = self._meta["dataType"])
+    self._table = zeros((len(lines[1:]),len(self._meta["fieldNames"])),dtype = self._meta["dataType"])
+    self._meta["length"] = 0
+    i = 0
     for line in lines[1:]:
       entries = line.split(delimiter)
       j = 0
+      if line == "":
+        continue
       for entry in entries:
         if entry != "":
           if self._meta["dataType"] == complex128:
-            number = complex(entry)
+            value = complex(entry)
+          elif self._meta["dataType"] == bool:
+            if entry == "False":
+              value = 0
+            else:
+              value = 1
           else:
-            number = float(entry)
-          if j < len(self._meta["fieldNames"]):
-            self._table[i,j] = number
+            value = float(entry)
+          if j < len(self._meta["fieldNames"]) and i < self._table.shape[0]:
+            self._table[i,j] = value
           j+=1
+      self._meta["length"]+=1
       i+=1
           
   def loadFromHdf5(self,path,verbose = False):
@@ -508,31 +561,6 @@ class Datacube(Subject,Observer,Reloadable):
     dataFile.flush()
     dataFile.close()
   
-  def equal(self,a):  
-    """
-    Checks if two datacubes are equal
-    """
-    if self.name() != a.name():
-      return False
-    if self.description() != a.description():
-      return False
-    if self.names() != a.names():
-      return False
-    if self.parameters() != a.parameters():
-      return False
-    if not allclose(self.table(),a.table()):
-      return False
-    allChildren = self.allChildren()
-    allChildrenA = a.allChildren()
-    if len(allChildren) != len(allChildrenA):
-      return False
-    for i in range(0,len(allChildren)):
-      if allChildren[i].equal(allChildrenA[i]) == False:
-        return False
-    return True
-  
-  def not_equal(self,a):
-    return not self.__eq__(a)
     
   def loadFromHdf5Object(self,dataFile,verbose = False):
 
@@ -542,7 +570,7 @@ class Datacube(Subject,Observer,Reloadable):
     
     version = dataFile.attrs["version"]
     
-    if version == "0.1":
+    if version in ["0.1","0.2"]:
       self._meta = yaml.load(dataFile.attrs["meta"])
       self._parameters = yaml.load(dataFile.attrs["parameters"])
     
@@ -551,19 +579,17 @@ class Datacube(Subject,Observer,Reloadable):
       self._table = empty(shape=ds.shape, dtype=ds.dtype)
       self._table[:] = ds[:]
     
-    self.adjustTable()
-    self._children = dict()
-
-    for row in dataFile['children'].keys():
-      childRowObject = dataFile['children'][row]
-      self._children[int(row)] = [None]*len(childRowObject)
-      for key in childRowObject.keys():
-        child = childRowObject[key]
-        index = int(key)
-        cube = Datacube()
-        cube.loadFromHdf5Object(child)
-        self._children[int(row)][index] = cube
+    self._adjustTable()
+    self._children = []
     
+    for key in sorted(map(lambda x:int(x),dataFile['children'].keys())):
+      child = dataFile['children'][str(key)]
+      cube = Datacube()
+      cube.loadFromHdf5Object(child)
+      attributes = yaml.load(child.attrs["attributes"])
+      item = ChildItem(cube,attributes)
+      self._children.append(item)
+      
     return True
 
   def saveToHdf5Object(self,dataFile,saveChildren = True,overwrite = False,forceSave = False,verbose = False):
@@ -583,18 +609,18 @@ class Datacube(Subject,Observer,Reloadable):
 
     #We save the child cubes
     if saveChildren:
-      for key in self._children.keys():
-        childRowFile = childrenFile.create_group(str(key))
-        grandchildren = self._children[key]
-        for i in range(0,len(grandchildren)):
-          child = grandchildren[i]
-          childFile = childRowFile.create_group(str(i))
-          child.saveToHdf5Object(childFile,verbose = verbose)
-
+      cnt = 0
+      for item in self._children:
+        childFile = childrenFile.create_group(str(cnt))
+        childFile.attrs["attributes"] = yaml.dump(item.attributes())
+        child = item.datacube()
+        child.saveToHdf5Object(childFile,verbose = verbose)
+        cnt+=1
+        
     self._unsaved = False
     return True
 
-  def saveTable(self,filename,delimiter = "\t"):
+  def saveTable(self,filename,delimiter = "\t",header = None):
     """
     Saves the data table to a given file
     """
@@ -603,6 +629,8 @@ class Datacube(Subject,Observer,Reloadable):
     for name in self.names():
       headers+=name+"\t"
     headers = string.rstrip(headers)+"\n"
+    if header != None:
+      file.write(header)
     file.write(headers)
     s = self._table.shape
     for i in range(0,min(s[0],self._meta["length"])):
@@ -618,7 +646,7 @@ class Datacube(Subject,Observer,Reloadable):
       file.write(line)
     file.close()
   
-  def savetxt(self,path = None,saveChildren = True,overwrite = False,forceSave = False):
+  def savetxt(self,path = None,saveChildren = True,overwrite = False,forceSave = False,allInOneFile = False):
 
     """
     Saves the datacube to a text file
@@ -633,7 +661,6 @@ class Datacube(Subject,Observer,Reloadable):
       raise Exception("You must supply a filename!")
     
     path = re.sub(r"\.[\w]{3}$","",path)
-    children = dict()
     directory = os.path.abspath(os.path.dirname(path))
     filename = os.path.split(path)[1]
     filename = self._sanitizeFilename(filename)
@@ -651,19 +678,19 @@ class Datacube(Subject,Observer,Reloadable):
     savepath = directory+"/"+savename
     parpath = directory+"/"+basename+".par"
 
+    children = []
+
     #We save the child cubes
     if saveChildren:
-      for key in self._children.keys():
-        grandchildren = self._children[key]
-        children[key] = []
-        cnt = 0
-        for child in grandchildren:
-          if child.name() != None:
-            childfilename = basename+"_"+child.name()+("-%d_%d" % (key,cnt))
-          else:
-            childfilename = basename+("-%d_%d" % (key,cnt))
-          children[key].append(child.savetxt(directory+"/"+childfilename,saveChildren = saveChildren,overwrite = True,forceSave = forceSave))
-          cnt+=1
+      for i in range(0,len(self._children)):
+        item = self._children[i]
+        child = item.datacube()
+        if child.name() != None:
+          childfilename = basename+"-"+child.name()+("-%d" % (i))
+        else:
+          childfilename = basename+("-%d" % (i))
+        childPath = child.savetxt(directory+"/"+childfilename,saveChildren = saveChildren,overwrite = True,forceSave = forceSave)
+        children.append({'attributes':item.attributes(),'path':childPath})
 
     if os.path.exists(savepath) and os.path.getmtime(savepath) <= self._meta["modificationTime"] and os.path.exists(parpath) and os.path.getmtime(parpath) <= self._meta["modificationTime"]:
       if self._unsaved == False and forceSave == False:
@@ -672,10 +699,7 @@ class Datacube(Subject,Observer,Reloadable):
     #We save the datacube itself
 
     self.setFilename(parpath)
-    self.saveTable(savepath)
-
-    self._meta["modificationTime"] = os.path.getmtime(savepath)
-    params = open(parpath,"w")
+    
     paramsDict = dict()
     paramsDict['version'] = Datacube.version
     paramsDict['meta'] = copy.copy(self._meta)
@@ -684,9 +708,20 @@ class Datacube(Subject,Observer,Reloadable):
     paramsDict['tablefilename'] = savename
 
     paramstxt = yaml.dump(paramsDict)
-    params.write(paramstxt)
-    params.close()
+
+    if not allInOneFile:
+      params = open(parpath,"w")
+      params.write(paramstxt)
+      params.close()
+      self.saveTable(savepath)
+    else:
+      lines = paramstxt.split("\n")
+      paramstxt = "#"+"\n#".join(lines)
+      self.saveTable(savepath,header = paramstxt)
+
     self._unsaved = False
+    self._meta["modificationTime"] = os.path.getmtime(savepath)
+
     return basename
         
   def name(self):
@@ -707,16 +742,14 @@ class Datacube(Subject,Observer,Reloadable):
     """
     Returns all child cubes at row [row]
     """
-    if row in self._children:
-      return self._children[row]
-    return []
+    return self.children(row = row)
       
   def _sanitizeFilename(self,filename):
     """
     Used to clean up the filename and remove all unwanted characters
     """
     filename = re.sub(r'\.','p',filename)    
-    filename = re.sub(r'[^\=\_\-\+\w\d\[\]\(\)\s\\\/]','_',filename)
+    filename = re.sub(r'[^\=\_\-\+\w\d\[\]\(\)\s\\\/]','-',filename)
     return filename
     
   def save(self,filename,format = 'pickle'):
@@ -761,7 +794,7 @@ class Datacube(Subject,Observer,Reloadable):
     
     guessStructure = False
     
-    if version == Datacube.version:
+    if version in ["0.1","0.2"]:
       self._meta = data["meta"]
       self._parameters = data["parameters"]
     elif version == "undefined":
@@ -774,21 +807,33 @@ class Datacube(Subject,Observer,Reloadable):
     if "parameters" in data:
       self._parameters = data["parameters"]
     
-    self._children = dict()
+    self._children = []
     
     if loadChildren:
-      for key in data['children']:
-        cubes = []
-        for name in data['children'][key]:
+      if version == "undefined" or version == "0.1":
+        for key in data["children"]:
+          for path in data["children"][key]:
+            if not os.path.isabs(path):
+              path = directory + "/" + path
+            datacube = Datacube()
+            datacube.loadtxt(path)
+            attributes = {"row" : key}
+            item = ChildItem(datacube,attributes)
+            self._children.append(item)
+      elif version == "0.2":
+        for child in data['children']:
           datacube = Datacube()
-          if not os.path.isabs(name):
-            name = directory + "/" + name
-          datacube.loadtxt(name)
-          cubes.append(datacube)
-        self._children[key] = cubes
+          path = child["path"]
+          if not os.path.isabs(path):
+            path = directory + "/" + path
+          datacube.loadtxt(path)
+          item = ChildItem(datacube,child["attributes"])
+          self._children.append(item)
 
-    self.loadTable(directory+"/"+data['tablefilename'],guessStructure = guessStructure)
+    tableFilename = directory+"/"+data['tablefilename']
+
+    self.loadTable(tableFilename,guessStructure = guessStructure)
     self._meta["modificationTime"] = os.path.getmtime(directory+"/"+data['tablefilename'])
 
-    self.adjustTable()
+    self._adjustTable()
     self.setFilename(directory+"/"+filename+".par")

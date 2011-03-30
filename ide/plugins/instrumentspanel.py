@@ -3,6 +3,9 @@ import sys
 import os
 import os.path
 import string
+import yaml
+import pickle
+import traceback
 
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
@@ -137,7 +140,6 @@ class InstrumentsPanel(QWidget,ObserverWidget):
       if result == QMessageBox.Cancel:
         return
       del self._states[name]
-      self._states.sync()
     self.updateStateList()
     
   def saveSetup(self):
@@ -150,11 +152,33 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     if name == "":
       return
 
-    state = self.manager.saveState(name)
+    state = self.manager.saveState(name,withInitialization = False)
     self._states[name] = state
-    self._states.sync()
+    self.saveStates()
     self.updateStateList()
     self.setupList.setCurrentIndex(self.setupList.findText(name))
+    
+  def saveStates(self,path = None):
+    if path == None:
+      path = self._picklePath
+    string = yaml.dump(self._states)
+    file = open(path,"w")
+    file.write(string)
+    file.close()
+  def loadStates(self,path = None):
+    if path == None:
+      path = self._picklePath
+    if os.path.exists(path):
+      try:
+        file = open(path,"r")
+        string = file.read()
+        self._states = yaml.load(string)
+      except:
+        print "Failed to load instrument setups!"
+        traceback.print_exc()
+        self._states = dict()
+    else:
+      self._states = dict()
     
   def updateStateList(self):  
     self.setupList.clear()
@@ -167,8 +191,8 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     self._instrumentsArea = InstrumentsArea()
     self.manager = pyview.helpers.instrumentsmanager.Manager()
     self.setMinimumHeight(200)
-    shelvePath = params["directories.setup"]+r"/config/setups.shelve"
-    self._states = shelve.open(shelvePath)
+    self._picklePath = params["directories.setup"]+r"/config/setups.pickle"
+    self.loadStates()
     self.dashboards = dict()
     self.setWindowTitle("Instruments")
     layout = QGridLayout()

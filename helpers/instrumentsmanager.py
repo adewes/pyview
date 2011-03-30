@@ -1,16 +1,10 @@
 import sys
 import getopt
-
 import os.path
-
-
 import traceback
 from threading import Thread
-
 import xmlrpclib
-
 import re
-
 from pyview.lib.classes import *
 
 class InstrumentHandle:
@@ -78,7 +72,10 @@ class RemoteManager:
     instr = self._manager.getInstrument(instrument)
     if hasattr(instr,command):
       method = getattr(instr,command)
-      return  method(*args,**kwargs)
+      if callable(method):
+        return  method(*args,**kwargs)
+      else:
+        return method
     raise Exception("Unknown function name: %s" % command)
 
 class Manager(Subject,Singleton):
@@ -176,7 +173,6 @@ class Manager(Subject,Singleton):
     frontPanel.setWindowTitle("%s front panel" % name)
     return frontPanel
     
-    
   def initRemoteInstrument(self,address,baseclass = None,args = [],kwargs = {},forceReload = False):
     """
     Loads a remote instrument, either through the HTTP XML-RPC protocol or through the custom Remote Instrument Protocol (RIP)
@@ -234,6 +230,26 @@ class Manager(Subject,Singleton):
     if re.match(r'^rip\:\/\/',name) or  re.match(r'^http\:\/\/',name):
       return True
     return False
+    
+  def initInstruments(self,instruments,globalParameters = {}):
+    for params in instruments:
+      url = ""
+      if 'serverAddress' in params:
+        url+=params["serverAddress"]+"/"
+      url+=params["name"]
+      if 'class' in params:
+        baseclass = params["class"]
+      else:
+        baseclass = params["name"]
+      if 'kwargs' in params:
+        kwargs = params["kwargs"]
+      else:
+        kwargs = {}
+      if 'args' in params:
+        args = params["args"]
+      else:
+        args = []
+      self.initInstrument(name = url,baseclass = baseclass,args = args,kwargs = kwargs,**globalParameters)
     
   def initInstrument(self,name,baseclass = None,args = [],kwargs = {},forceReload = False):
     """

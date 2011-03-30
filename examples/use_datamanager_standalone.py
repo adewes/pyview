@@ -1,5 +1,5 @@
-from pyview.ide.datamanager import startDataManagerThread
-from pyview.lib.datacube import *
+
+from pyview.ide.datamanager import *
 from pyview.helpers.datamanager import DataManager
 
 if __name__ == '__main__':

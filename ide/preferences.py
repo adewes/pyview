@@ -15,7 +15,11 @@ class Preferences():
       os.mkdir(self._appFolder)
     print self._appFolder
     self._filename = filename 
-    self._prefs = shelve.open(self._appFolder+'/'+self._filename)
+    self.open()
+    
+  def open(self):
+    path =self._appFolder+'/'+self._filename
+    self._prefs = shelve.open(path)
     
   def set(self,name,value):
     self._prefs[name] = value
@@ -36,5 +40,9 @@ class Preferences():
     self.save()
     
   def save(self):
-    self._prefs.sync()
+    try:
+      self._prefs.sync()
+    except:
+      print "File error when writing the preferences back to disk. Trying to reopen..."
+      self.open()
 

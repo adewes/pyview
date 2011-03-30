@@ -9,6 +9,7 @@ import copy
 import weakref
 
 class Singleton(object):
+
   _instance = None
   
   def delete(self):

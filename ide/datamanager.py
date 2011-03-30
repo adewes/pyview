@@ -5,9 +5,7 @@ import os.path
 import weakref
 import gc
 import time
-import numpy
 
-import pyview.helpers.instrumentsmanager
 import pyview.helpers.datamanager as dm
 from pyview.lib.datacube import *
 from pyview.lib.classes import *
@@ -19,6 +17,8 @@ from pyview.ide.mpl.canvas import *
 reload(sys.modules['pyview.ide.mpl.canvas'])
 from pyview.ide.mpl.canvas import *
 from pyview.ide.patterns import ObserverWidget
+
+import numpy
 
 def startPlugin(ide,*args,**kwargs):
   """
@@ -68,15 +68,28 @@ class Plot2DWidget(QWidget,ObserverWidget):
     ynames = []
     title = self._plots[0].cube.name()
     legend = []
+    legendPlots = []
+    filenames = []
     for plot in self._plots:
-      plot.lines.set_xdata(plot.cube.column(plot.xname))
-      plot.lines.set_ydata(plot.cube.column(plot.yname))
+      if plot.xname != "[row number]":
+        xvalues = plot.cube.column(plot.xname)
+      else:
+        xvalues = arange(0,len(plot.cube),1)
+      if plot.yname != "[row number]":
+        yvalues = plot.cube.column(plot.yname)
+      else:
+        yvalues = arange(0,len(plot.cube),1)
+
+      plot.lines.set_xdata(xvalues)
+      plot.lines.set_ydata(yvalues)
       if not plot.xname in xnames:
         xnames.append(plot.xname)
       if not plot.yname in ynames:
         ynames.append(plot.yname)
-      if not plot.cube.filename() in legend:
-        legend.append(plot.cube.filename())
+      if not plot.cube.filename() in filenames and plot.cube.filename() != None:
+        legend.append(plot.yname+":"+plot.cube.filename()[:-4])
+        legendPlots.append(plot.lines)
+        filenames.append(plot.cube.filename())
       #This is a bug in matplotlib. We have to call "recache" to make sure that the plot is correctly updated.
       plot.lines.recache()
     if self.canvas.axes.get_autoscale_on() == True:
@@ -86,15 +99,15 @@ class Plot2DWidget(QWidget,ObserverWidget):
     self.canvas.axes.set_xlabel(", ".join(xnames))
     self.canvas.axes.set_ylabel(", ".join(ynames))
     self.canvas.axes.set_title(title)
-    from matplotlib.font_manager import FontProperties
-    self.canvas.axes.legend(legend,prop = FontProperties(size = 6))
+    if self._showLegend and len(legend) > 0:
+      from matplotlib.font_manager import FontProperties
+      self.canvas.axes.legend(legendPlots,legend,prop = FontProperties(size = 6))
+    else:
+      self.canvas.axes.legend_ = None 
     self.canvas.draw()
 
-  def addPlot(self,xName=None,yName=None):
-    if self._cube == None:
-      return
+  def addPlot(self,xName=None,yName=None,**kwargs):
     plot = Datacube2DPlot()
-
     if xName==None and yName==None:
       plot.xname = str(self.xNames.currentText())
       plot.yname = str(self.yNames.currentText())
@@ -102,10 +115,23 @@ class Plot2DWidget(QWidget,ObserverWidget):
       plot.xname = xName
       plot.yname = yName
 
+    if self._cube == None:
+      return
+
+    if ((not plot.xname in self._cube.names()) and plot.xname != "[row number]") or ((not plot.yname in self._cube.names())  and plot.yname != "[row number]"):
+      return
     plot.cube = self._cube 
     plot.legend = "%s, %s vs. %s" % (self._cube.name(),plot.xname,plot.yname)
     plot.style = 'line'
-    plot.lines, = self.canvas.axes.plot(plot.cube.column(plot.xname),plot.cube.column(plot.yname),color = self._lineColors[self._cnt%len(self._lineColors)],ls = self._lineStyles[(self._cnt/len(self._lineColors))%len(self._lineStyles)])
+    if plot.xname != "[row number]":
+      xvalues = plot.cube.column(plot.xname)
+    else:
+      xvalues = arange(0,len(plot.cube),1)
+    if plot.yname != "[row number]":
+      yvalues = plot.cube.column(plot.yname)
+    else:
+      yvalues = arange(0,len(plot.cube),1)
+    plot.lines, = self.canvas.axes.plot(xvalues,yvalues,**kwargs)
     self._cnt+=1
     plot.cube.attach(self)
     plot.lineStyleLabel = QLabel("line style") 
@@ -143,6 +169,8 @@ class Plot2DWidget(QWidget,ObserverWidget):
   def updateNames(self,names):
     self.xNames.clear()
     self.yNames.clear()
+    self.xNames.addItem("[row number]")
+    self.yNames.addItem("[row number]")
     for name in sorted(names):
       self.xNames.addItem(name,name)    
       self.yNames.addItem(name,name)
@@ -158,11 +186,19 @@ class Plot2DWidget(QWidget,ObserverWidget):
       return
     self._updated = True
     self.updatePlot()
+    
+  def showLegendStateChanged(self,state):
+    if state == Qt.Checked:
+      self._showLegend = True
+    else:
+      self._showLegend = False
+    self.updatePlot()
 
   def __init__(self,parent = None):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     self._cube = None
+    self._showLegend = True
     self._plots = []
     self._cnt = 0
     self._lineColors = [(0,0,0),(0.8,0,0),(0.0,0,0.8),(0.0,0.5,0),(0.5,0.5,0.5),(0.8,0.5,0.0),(0.9,0,0.9)]
@@ -191,6 +227,8 @@ class Plot2DWidget(QWidget,ObserverWidget):
     self.addButton = QPushButton("Add Curve")
     self.clearButton = QPushButton("Clear Plot")
     self.yNames = QComboBox()
+    self.showLegend = QCheckBox("Show Legend")
+    self.showLegend.setCheckState(Qt.Checked)
     self.yNames.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 
     playout = QBoxLayout(QBoxLayout.LeftToRight)
@@ -199,10 +237,12 @@ class Plot2DWidget(QWidget,ObserverWidget):
     playout.addWidget(QLabel("Y:"))
     playout.addWidget(self.yNames)
     playout.addWidget(self.addButton)
+    playout.addWidget(self.showLegend)
     playout.addStretch()
     playout.addWidget(self.addDefaultCurves)
     playout.addWidget(self.clearButton)
     
+    self.connect(self.showLegend,SIGNAL("stateChanged(int)"),self.showLegendStateChanged)
     self.connect(self.addDefaultCurves,SIGNAL("clicked()"),self.addDefaultPlot)
     self.connect(self.addButton,SIGNAL("clicked()"),self.addPlot)
     self.connect(self.clearButton,SIGNAL("clicked()"),self.clearPlots)
@@ -280,7 +320,12 @@ class Plot2DWidget(QWidget,ObserverWidget):
   
   def addDefaultPlot(self):
     if 'defaultPlot' in self._cube.parameters():
-      for (xName,yName) in self._cube.parameters()["defaultPlot"]:
+      for params in self._cube.parameters()["defaultPlot"]:
+        if len(params) == 3:
+          (xName,yName,kwargs) = params
+        else:
+          (xName,yName) = params
+          kwargs = {}
         found = False
         for plot in self._plots:
           if plot.xname == xName and plot.yname == yName and plot.cube == self._cube:
@@ -288,7 +333,7 @@ class Plot2DWidget(QWidget,ObserverWidget):
             break
         if found:
           continue
-        self.addPlot(xName=xName,yName=yName)
+        self.addPlot(xName=xName,yName=yName,**kwargs)
 
 class DataTreeView(QTreeWidget,ObserverWidget):
     
@@ -322,7 +367,7 @@ class DataTreeView(QTreeWidget,ObserverWidget):
       self.insertTopLevelItem(0,item)
     else:
       self._items[self.ref(parent)].addChild(item)
-    for child in datacube.allChildren():
+    for child in datacube.children():
       self.addDatacube(child,datacube)
       
   def removeItem(self,item):
@@ -356,7 +401,7 @@ class DataTreeView(QTreeWidget,ObserverWidget):
     
   def initTreeView(self):
     self.clear()
-    for child in self._root.allChildren():
+    for child in self._root.children():
       self.addDatacube(child,self._root)
     
   def updatedGui(self,subject,property = None,value = None):
@@ -477,7 +522,7 @@ class DataManager(QMainWindow,ObserverWidget):
     pass
   
   def loadDatacube(self):
-    filename = QFileDialog.getOpenFileName()
+    filename = QFileDialog.getOpenFileName(filter = "Datacubes (*.par)")
     if not filename == '':
       cube = Datacube()
       cube.loadtxt(str(filename))
@@ -519,7 +564,7 @@ class DataManager(QMainWindow,ObserverWidget):
     if self._cube == None:
       return
     if self._cube.filename() == None or saveAs:
-      filename = QFileDialog.getSaveFileName()
+      filename = QFileDialog.getSaveFileName(filter = "Datacubes (*.par)")
       if filename != "":
         self._cube.savetxt(str(filename))
     else:

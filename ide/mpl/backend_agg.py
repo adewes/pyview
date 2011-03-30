@@ -21,7 +21,6 @@ drawLabel = None
 figureMap = dict()
 nFigures = 0
 figures = None
-updated = False
 drawingWidgets = 0
 
 class MyMainWindow(QMainWindow):
@@ -46,27 +45,28 @@ class MyFigureCanvas(FigureCanvasQTAgg):
   """
   
   def __init__(self,*args,**kwargs):
-    self._lock = RLock()
     FigureCanvasQTAgg.__init__(self,*args,**kwargs)
+            
             
   def print_figure(self, filename, dpi=None, facecolor='w', edgecolor='w',
                      orientation='portrait', format=None, **kwargs):
-    if self._lock.acquire(blocking = False) == False:
+    if self.figure._lock.acquire(blocking = False) == False:
+      print "Failed to acquire lock..."
       return
     try:
       FigureCanvasQTAgg.print_figure(self, filename, dpi, facecolor, edgecolor,
                         orientation, format, **kwargs)
     finally:
-      self._lock.release()
+      self.figure._lock.release()
 
   def paintEvent(self,e):
-    if self._lock.acquire(blocking = False) == False:
-      addToUpdateList(self.figure)
+    if self.figure._lock.acquire(blocking = False) == False:
+#      addToUpdateList(self.figure)
       return
     try:
       FigureCanvasQTAgg.paintEvent(self,e)  
     finally:
-      self._lock.release()
+      self.figure._lock.release()
         
     
 ##This function should only be called from the main thread!!!
@@ -77,62 +77,57 @@ def updateFigures():
   global drawWidget
   global drawLabel
   global figureTabs
-  global updated
   global drawingWidgets
+
   if drawingWidgets > 0:
     return
-  if matplotlib.is_interactive():
-      #We check the update list for figures...
-      while len(updateList)>0:
-        figure = updateList.pop(0)
-        #We redraw each figure that is requested...
-        if drawWidget == None:
-          drawWidget = QMainWindow()
-          drawWidget.setWindowTitle("Figures")
-          drawWidget.setMinimumWidth(640)
-          drawWidget.setMinimumHeight(480)
-          figureTabs = QTabWidget()
-          figureTabs.setTabsClosable(True)
-          figureTabs.connect(figureTabs,SIGNAL("tabCloseRequested(int)"),closeFigureTab)
-          drawWidget.setCentralWidget(figureTabs)
-        
-        for i in range(0,len(managers)):
-          if managers[i].canvas.figure == figure:
-            try:
-              managers[i].window.update()
-              if hasattr(figure,'_name'):
-                figureTabs.setTabText(i,figure._name)
-              figureTabs.setCurrentIndex(i)
-              isUpdating = False
-              drawWidget.show()
-            except:
-              print "A plotting error occured."
-              print traceback.print_exc()
-            return
-            
-        MyManager = FigureManagerQTAgg(MyFigureCanvas(figure),1)
-              
-        managers.append(MyManager)
+
+  #We check the update list for figures...
+  while len(updateList)>0:
+    figure = updateList.pop(0)
+    #We redraw each figure that is requested...
+    if drawWidget == None:
+      drawWidget = QMainWindow()
+      drawWidget.setWindowTitle("Figures")
+#          drawWidget.setMinimumWidth(640)
+#          drawWidget.setMinimumHeight(480)
+      figureTabs = QTabWidget()
+      figureTabs.setTabsClosable(True)
+      figureTabs.connect(figureTabs,SIGNAL("tabCloseRequested(int)"),closeFigureTab)
+      drawWidget.setCentralWidget(figureTabs)
+    
+    for i in range(0,len(managers)):
+      if managers[i].canvas.figure == figure:
         try:
-          MyManager.window.update()
+          managers[i].window.update()
           if hasattr(figure,'_name'):
-            figureTabs.addTab(MyManager.window,figure._name)
-          else:
-            figureTabs.addTab(MyManager.window,"[new figure]")
+            figureTabs.setTabText(i,figure._name)
+          figureTabs.setCurrentIndex(i)
+          isUpdating = False
           drawWidget.show()
         except:
+          print "A plotting error occured."
           print traceback.print_exc()
-  
-  #We toggle the value of updated...
-  updated = not updated
+        return
+        
+    MyManager = FigureManagerQTAgg(MyFigureCanvas(figure),1)
+          
+    managers.append(MyManager)
+    try:
+      MyManager.window.update()
+      if hasattr(figure,'_name'):
+        figureTabs.addTab(MyManager.window,figure._name)
+      else:
+        figureTabs.addTab(MyManager.window,"[new figure]")
+      drawWidget.show()
+    except:
+      print traceback.print_exc()
+
       
 def addToUpdateList(fig):
-  found = False
-  for figure in updateList:
-    if figure == fig:
-      found = True
-  if found == False:
-    updateList.append(fig)
+  if fig in updateList:
+    return
+  updateList.append(fig)
   
 def figure(name,*args,**kwargs):
   """
@@ -140,22 +135,33 @@ def figure(name,*args,**kwargs):
   """
   global figureMap
   global nFigures
+  name = str(name)
   if not name in figureMap:
     figureMap[name] = nFigures
     nFigures+=1
   fig = matplotlib.pyplot.figure(figureMap[name],*args,**kwargs)
+  if not hasattr(fig,'_lock'):
+    fig._lock = RLock()
   fig._name = name
   return fig
     
 ##This function can be called from any thread...
+def draw():
+  fig = matplotlib.pyplot.gcf()
+  if not hasattr(fig,'_lock'):
+    fig._lock = RLock()
+  try:
+    fig._lock.acquire()
+    fig.canvas.draw()
+  except:
+    pass
+  finally:
+    fig._lock.release()
+    addToUpdateList(fig)
+    
 def draw_if_interactive():
   """
   Replacement for matplotlib.draw_if_interactive.
   Adds the figure that needs to be redrawn to an update list.
   """
-  fig = matplotlib.pyplot.gcf()
-  addToUpdateList(fig)
-  try:
-    fig.canvas.draw()
-  except:
-    pass
+  draw()

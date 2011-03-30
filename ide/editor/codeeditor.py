@@ -26,7 +26,6 @@ class ErrorConsole(QTreeWidget,ObserverWidget):
     self.setColumnCount(2)
     self.setColumnWidth(0,400)
     self.setHeaderLabels(["filename","line"])
-    codeRunner.attach(self)
     
   def updatedGui(self,subject,property,value = None):
     if subject == self._codeRunner and property == "exceptions":
@@ -219,7 +218,6 @@ class CodeEditorWindow(QWidget):
           self.emit(SIGNAL("returnPressed()"))
 
 
-
 class LineNumbers(QTextEdit):
 
   def __init__(self,parent,width = 50):
@@ -245,18 +243,41 @@ class LineTextWidget(QPlainTextEdit):
             # This is used to update the width of the control.
             # It is the highest line that is currently visibile.
             self.highest_line = 0
- 
+            
         def setTextEdit(self, edit):
             self.edit = edit
  
         def update(self, *args):
             maxline = self.edit.document().lastBlock().firstLineNumber()+self.edit.document().lastBlock().lineCount()
-            width = QFontMetrics(self.edit.document().defaultFont()).width(str(maxline)) + 10
+            width = QFontMetrics(self.edit.document().defaultFont()).width(str(maxline)) + 10+10
             if self.width() != width:
                 self.setFixedWidth(width)
-                self.edit.setViewportMargins(width,0,0,0)
+                margins = QMargins(width,0,0,0)
+                self.edit.setViewportMargins(margins)
+                self.edit.viewport().setContentsMargins(margins)
             QWidget.update(self, *args)
- 
+            
+        def mousePressEvent(self,e):
+          print "Mouse pressed!"
+          block = self.edit.firstVisibleBlock()
+          viewport_offset = self.edit.contentOffset()
+          blockFound = False
+          changed = False
+          while block.isValid():
+            
+            if not block.isVisible():
+              position = self.edit.blockBoundingGeometry(block).topLeft()+viewport_offset
+              if abs(e.pos().y()-position.y()) < 10 or blockFound:
+                block.setVisible(True)
+                changed = True
+                blockFound = True
+            else:
+              blockFound = False
+               
+            block = block.next()
+            if changed:
+              self.edit.viewport().update()
+  
         def paintEvent(self, event):
             contents_y = 0
             page_bottom = self.edit.viewport().height()
@@ -271,15 +292,26 @@ class LineTextWidget(QPlainTextEdit):
             line_count = block.blockNumber()
             painter.setFont(self.edit.document().defaultFont())
             while block.isValid():
-                line_count += 1
- 
+  
+                invisibleBlock = False
+                
+                while not block.isVisible():
+                  invisibleBlock = True
+                  block = block.next()
+  
                 # The top left position of the block in the document
                 position = self.edit.blockBoundingGeometry(block).topLeft()+viewport_offset
                 # Check if the position of the block is out side of the visible
                 # area.
                 if position.y() > page_bottom:
                     break
- 
+                
+                line_count = block.firstLineNumber()+1
+                
+                if invisibleBlock:
+                  painter.drawLine(0, round(position.y()),self.edit.width()-self.width(),round(position.y()))
+                  continue
+    
                 # We want the line number for the selected line to be bold.
                 bold = False
                 if block == current_block:
@@ -290,7 +322,7 @@ class LineTextWidget(QPlainTextEdit):
  
                 # Draw the line number right justified at the y position of the
                 # line. 3 is a magic padding number. drawText(x, y, text).
-                painter.drawText(self.width() - font_metrics.width(str(line_count)) - 3, round(position.y()) + font_metrics.ascent()+font_metrics.descent()-1, str(line_count))
+                painter.drawText(self.width() - 10 - font_metrics.width(str(line_count)) - 3, round(position.y()) + font_metrics.ascent()+font_metrics.descent()-1, str(line_count))
  
                 # Remove the bold style if it was set previously.
                 if bold:
@@ -316,7 +348,7 @@ class LineTextWidget(QPlainTextEdit):
 
     def resizeEvent(self,e):
         self.number_bar.setFixedHeight(self.height())
-        QPlainTextEdit.resizeEvent(self,e)
+        super(LineTextWidget,self).resizeEvent(e)
         
     def setDefaultFont(self,font):
       self.document().setDefaultFont(font)
@@ -329,10 +361,128 @@ class LineTextWidget(QPlainTextEdit):
             return False
         return QPlainTextEdit.eventFilter(object, event)
 
+class SearchableEditor(object):
+
+  def __init__(self):
+    self._panel = QWidget(self)
+    self._layout = QBoxLayout(QBoxLayout.LeftToRight)
+    self._panel.setLayout(self._layout)
+    self._searchText = QLineEdit("test")
+    self._replaceText = QLineEdit("replace")
+    self._forwardButton = QPushButton("Forward")
+    self._backwardButton = QPushButton("Backward")
+    self._caseSensitive = QCheckBox("Case Sensitive")
+    self._useRegex = QCheckBox("Regex")
     
-class CodeEditor(LineTextWidget):
+    self._layout.addWidget(self._searchText)
+    self._layout.addWidget(self._replaceText)
+    self._layout.addWidget(self._forwardButton)
+    self._layout.addWidget(self._backwardButton)
+    self._layout.addWidget(self._caseSensitive)
+    self._layout.addWidget(self._useRegex)
+    self._layout.addStretch()
+    self._panel.hide()
 
+    self.connect(self._searchText,SIGNAL("enterPressed()"),self.searchText)
+    self.connect(self._forwardButton,SIGNAL("clicked()"),self.searchText)
+    self.connect(self._backwardButton,SIGNAL("clicked()"),lambda: self.searchText(backward = True))
+    
+  def resizeEvent(self,e):
+    self._panel.setGeometry(0,self.height()-40,self.width(),40)
+    self.adjustMargins()
 
+  def searchText(self,backward = False):
+    text = self._searchText.text()
+    if self._useRegex.isChecked():
+      if backward:
+        result = self.document().find(QRegExp(text),self.textCursor().selectionStart(),QTextDocument.FindBackward)
+      else:
+        result = self.document().find(QRegExp(text),self.textCursor().position())
+    else:
+      if self._caseSensitive.isChecked():
+        if backward:
+          result = self.document().find(text,self.textCursor().selectionStart(),QTextDocument.FindCaseSensitively | QTextDocument.FindBackward)
+        else:
+          result = self.document().find(text,self.textCursor().position(),QTextDocument.FindCaseSensitively)
+      else:
+        if backward:
+          result = self.document().find(text,self.textCursor().selectionStart(),QTextDocument.FindBackward)
+        else:
+          result = self.document().find(text,self.textCursor().position())
+    if not result.isNull():
+      self.setTextCursor(result)
+      self.ensureCursorVisible()
+    
+
+  def replaceText(self):
+    pass
+    
+  def showSearchBar(self):
+    self._panel.show()
+    self._searchText.setFocus()
+    self.adjustMargins()
+        
+  def hideSearchBar(self):
+    self._panel.hide()
+    self.setFocus()
+    self.adjustMargins()
+    
+  def adjustMargins(self):
+    if self._panel.isVisible():
+      margins = self.viewport().contentsMargins()
+      margins.setBottom(40)
+      self.setViewportMargins(margins)
+    else:
+      margins = self.viewport().contentsMargins()
+      margins.setBottom(0)
+      self.setViewportMargins(margins)
+          
+  def keyPressEvent(self,e):
+    if (e.key() == Qt.Key_F) and (e.modifiers() & Qt.ControlModifier):
+      self.showSearchBar()
+    elif (e.key() == Qt.Key_Escape):
+      self.hideSearchBar()
+    elif (e.key() == Qt.Key_Enter or e.key() == Qt.Key_Return) and self._panel.isVisible():
+      e.accept()
+      self.searchText()
+    else:
+      e.ignore()
+    
+class CodeEditor(LineTextWidget,SearchableEditor):
+
+    def __init__(self,parent = None,codeRunner = CodeRunner(),lineWrap = True):
+        LineTextWidget.__init__(self,parent)
+        SearchableEditor.__init__(self)
+        self._fileName = None
+        self.setTabStopWidth(20)
+        self._tabWidget = None
+        self._windowManager = None
+        self._modifiedAt = None
+        self._errorSelections = []
+        self._reloadWhenChanged = None
+        self._codeRunner = codeRunner
+        self._codeId = self._codeRunner.getId()
+        self._blockHighlighting = True
+        self._tabToolTip = '[untitled]'
+        self._MyTimer = QTimer(self)
+        self.connect(self._MyTimer,SIGNAL("timeout()"),self.onTimer)
+        self._MyTimer.start(500)
+        self.setAttribute(Qt.WA_DeleteOnClose,True)
+        MyFont = QFont("Courier",10)
+        self.setDefaultFont(MyFont)
+        self.connect(self.document(), SIGNAL('modificationChanged(bool)'), self.updateUndoStatus)
+        self.connect(self, SIGNAL("cursorPositionChanged()"),self.cursorPositionChanged)
+        self.setLineWrap(lineWrap)
+        executeBlockShortcut = QShortcut(self)
+        executeBlockShortcut.setKey(QKeySequence(Qt.SHIFT+Qt.Key_Return))
+        self.connect(executeBlockShortcut,SIGNAL("activated()"),self.executeBlock)
+        self.setChanged (False)
+        self.updateTab()
+        
+    def resizeEvent(self,e):
+      LineTextWidget.resizeEvent(self,e)
+      SearchableEditor.resizeEvent(self,e)
+      
     def checkForText(self):
      if self.fileOpenThread.textReady == False:
         self.timer = QTimer(self)
@@ -353,7 +503,7 @@ class CodeEditor(LineTextWidget):
       selection = QTextEdit.ExtraSelection()
     
       cursor = self.textCursor()
-      cursor.setPosition(block.position())
+      cursor.setPosition(block.position()+1)
       cursor.movePosition(QTextCursor.StartOfLine,QTextCursor.KeepAnchor) 
       cursor.movePosition(QTextCursor.EndOfLine,QTextCursor.KeepAnchor) 
       selection.cursor = cursor
@@ -444,9 +594,9 @@ class CodeEditor(LineTextWidget):
      if self._tabWidget != None:
         changed_text = ""
         running_text = ""
-        if self._codeRunner.isExecutingCode(self):
+        if self._codeRunner.isExecutingCode(self._codeId):
           running_text = "[running]"
-        if self._codeRunner.hasFailed(self):
+        if self._codeRunner.hasFailed(self._codeId):
           running_text = "[failed]"
         if self._Changed == True:
           changed_text = "*"  
@@ -455,7 +605,7 @@ class CodeEditor(LineTextWidget):
     
         
     def saveFileAs(self):
-      FileName = QFileDialog.getSaveFileName()
+      FileName = QFileDialog.getSaveFileName(filter = "Python(*.py *.pyw)")
       if FileName != '':
         print "Saving document as %s" % FileName
         if os.path.isfile(FileName):
@@ -469,37 +619,90 @@ class CodeEditor(LineTextWidget):
       
     def openFile(self,FileName = None):
       if FileName == None:
-        FileName = QFileDialog.getOpenFileName()
+        FileName = QFileDialog.getOpenFileName(filter = "Python(*.py *.pyw)")
       if os.path.isfile(FileName):
           return self._openCode(FileName)
       return False
+
+    def autoIndentCurrentLine(self):
+      cursor = self.textCursor()
+      
+      start = cursor.position()
+      
+      cursor.movePosition(QTextCursor.StartOfLine,QTextCursor.MoveAnchor)
+      cursor.movePosition(QTextCursor.EndOfLine,QTextCursor.KeepAnchor)
+      
+      text = cursor.selection().toPlainText()
+      
+      lastLine = QTextCursor(cursor)
+      
+      lastLine.movePosition(QTextCursor.PreviousBlock,QTextCursor.MoveAnchor)
+      lastLine.movePosition(QTextCursor.StartOfLine,QTextCursor.MoveAnchor)
+      lastLine.movePosition(QTextCursor.EndOfLine,QTextCursor.KeepAnchor)
+
+      lastLineText = lastLine.selection().toPlainText()
+      
+      blankLine = QRegExp("^[\t ]*$")
+      
+      indents = QRegExp(r"^[ \t]*")
+      index = indents.indexIn(lastLineText)
+      cursor.insertText(lastLineText[:indents.matchedLength()]+text)
+      
+      cursor.setPosition(start+indents.matchedLength())
+      
+      self.setTextCursor(cursor)
+        
       
     def indentCurrentSelection(self):
-      text = self.textCursor().selection().toPlainText()
       cursor = self.textCursor()
-      currentPos = cursor.position()
+
       start = cursor.selectionStart()
+      end = cursor.selectionEnd()
+
+      cursor.setPosition(start,QTextCursor.MoveAnchor)
+      cursor.movePosition(QTextCursor.StartOfLine,QTextCursor.MoveAnchor)
+
+      start = cursor.selectionStart()
+
+      cursor.setPosition(end,QTextCursor.KeepAnchor)
+      cursor.movePosition(QTextCursor.EndOfLine,QTextCursor.KeepAnchor)
+
+      text = cursor.selection().toPlainText()
+
       text.replace(QRegExp(r"(\n|^)"),"\\1\t")
+
       cursor.insertText(text)
+
       cursor.setPosition(start)
       cursor.setPosition(start+len(text),QTextCursor.KeepAnchor)
+
       self.setTextCursor(cursor)
               
     def unindentCurrentSelection(self):
       cursor = self.textCursor()
-      newCursor = self.textCursor()
-      newCursor.setPosition(cursor.selectionStart())
-      newCursor.setPosition(cursor.selectionEnd(),QTextCursor.KeepAnchor)
-      text = newCursor.selection().toPlainText()
-      currentPos = cursor.position()
+
       start = cursor.selectionStart()
-      text.replace(QRegExp(r"(\n)\s"),"\\1")
-      text.replace(QRegExp(r"^(\s*)\s"),"\\1")
+      end = cursor.selectionEnd()
+
+      cursor.setPosition(start,QTextCursor.MoveAnchor)
+
+      start = cursor.selectionStart()
+
+      cursor.movePosition(QTextCursor.StartOfLine,QTextCursor.MoveAnchor)
+      cursor.setPosition(end,QTextCursor.KeepAnchor)
+      cursor.movePosition(QTextCursor.EndOfLine,QTextCursor.KeepAnchor)
+
+      text = cursor.selection().toPlainText()
+      
+      text.replace(QRegExp(r"(\n)[ \t]([^\n]+)"),"\\1\\2")
+      text.replace(QRegExp(r"^[ \t]([^\n]+)"),"\\1")
+      
       cursor.insertText(text)
+
       cursor.setPosition(start)
       cursor.setPosition(start+len(text),QTextCursor.KeepAnchor)
-      self.setTextCursor(cursor)
               
+      self.setTextCursor(cursor)
 
     def gotoNextBlock(self):
       block = self.getCurrentBlock()
@@ -512,7 +715,7 @@ class CodeEditor(LineTextWidget):
     def gotoPreviousBlock(self):
       block = self.getCurrentBlock()
       cursor = self.textCursor()
-      if cursor.position() == block.cursor.selectionStart():
+      if cursor.position() == block.cursor.selectionStart() and block.cursor.selectionStart() != 0:
         cursor.setPosition(block.cursor.selectionStart()-1)
 
         block = self.getCurrentBlock()
@@ -611,17 +814,17 @@ class CodeEditor(LineTextWidget):
         e.ignore()
 
     def stopExecution(self):
-      if self._codeRunner.isExecutingCode(self):
-        self._codeRunner.stopExecution(self)
+      if self._codeRunner.isExecutingCode(self._codeId):
+        self._codeRunner.stopExecution(self._codeId)
     
     def executeCode(self,code,callback = None):
-      if self._codeRunner.isExecutingCode(self):
+      if self._codeRunner.isExecutingCode(self._codeId):
         print "Terminate or wait for other thread first..."
         return
       source = "[undefined]"
       if self.fileName() != None:
         source = self.fileName()
-      self._codeRunner.executeCode(code,self,filename = source)
+      self._codeRunner.executeCode(code,self._codeId,filename = source)
       self.checkRunStatus()
       
     def executeAll(self,callback = None):
@@ -643,25 +846,37 @@ class CodeEditor(LineTextWidget):
 
     def hideBlock(self):
       print "Hiding..."
-      selection = self.getCurrentBlock()
-      selection.cursor.block().setVisible(False)
+      block = QTextBlock()
+      selection = self.textCursor().block()
+      selection.setVisible(False)
+      self.viewport().update()
 
     def contextMenuEvent(self,event):
         MyMenu = self.createStandardContextMenu()
-        if self.thread != None and self._codeRunner.isExecutingCode(self):
+        if self.thread != None and self._codeRunner.isExecutingCode(self._codeId):
           stopExecution = MyMenu.addAction("terminate execution")
           self.connect(stopExecution, SIGNAL('triggered()'), self.stopExecution)
         else:
+          MyMenu.addSeparator()
           executeBlock = MyMenu.addAction("execute block")
           executeSelection = MyMenu.addAction("execute selection")
           executeAll = MyMenu.addAction("execute all")
           executeBlock.setShortcut(QKeySequence(Qt.CTRL+Qt.Key_Return))
           hideBlock = MyMenu.addAction("Hide block")
+          MyMenu.addSeparator()
+          if self._lineWrap:
+            lineWrap = MyMenu.addAction("Disable line wrap")
+          else:
+            lineWrap = MyMenu.addAction("Enable line wrap")
+          self.connect(lineWrap,SIGNAL("triggered()"),self.toggleLineWrap)
           self.connect(hideBlock,SIGNAL('triggered()'),self.hideBlock)
           self.connect(executeBlock, SIGNAL('triggered()'), self.executeBlock)
           self.connect(executeSelection, SIGNAL('triggered()'), self.executeSelection)
           self.connect(executeAll, SIGNAL('triggered()'), self.executeAll)
         MyMenu.exec_(self.cursor().pos())
+        
+    def toggleLineWrap(self):
+      self.setLineWrap(not self._lineWrap)
     
     def alertFileContentsChanged(self):
         MyMessageBox = QMessageBox()
@@ -713,7 +928,10 @@ class CodeEditor(LineTextWidget):
       self.setChanged(status)
         
     def keyPressEvent(self,e):
-      if (e.key() == Qt.Key_Enter or e.key() == Qt.Key_Return) and (e.modifiers() & Qt.ControlModifier):
+      SearchableEditor.keyPressEvent(self,e)
+      if e.isAccepted():
+        return
+      if (e.key() == Qt.Key_Enter):
         self.executeBlock()
         e.accept()
         return
@@ -732,6 +950,9 @@ class CodeEditor(LineTextWidget):
         e.accept()
         return
       LineTextWidget.keyPressEvent(self,e)
+      if e.key() == Qt.Key_Return or e.key() == Qt.Key_Enter:
+        self.autoIndentCurrentLine()
+        
       
     def setWindowManager(self,manager):
       self._windowManager = manager
@@ -739,30 +960,9 @@ class CodeEditor(LineTextWidget):
     def windowManager(self):
       return self._windowManager
       
-    def __init__(self,parent = None,codeRunner = CodeRunner()):
-        LineTextWidget.__init__(self,parent)
-        self._fileName = None
-        self.setTabStopWidth(20)
-        self._tabWidget = None
-        self._windowManager = None
-        self._modifiedAt = None
-        self._errorSelections = []
-        self._reloadWhenChanged = None
-        self._codeRunner = codeRunner
-        self._blockHighlighting = True
-        self._tabToolTip = '[untitled]'
-        self._MyTimer = QTimer(self)
-        self.connect(self._MyTimer,SIGNAL("timeout()"),self.onTimer)
-        self._MyTimer.start(500)
-        self.setAttribute(Qt.WA_DeleteOnClose,True)
-        MyFont = QFont("Courier",10)
-        self.setDefaultFont(MyFont)
-        self.connect(self.document(), SIGNAL('modificationChanged(bool)'), self.updateUndoStatus)
-        self.connect(self, SIGNAL("cursorPositionChanged()"),self.cursorPositionChanged)
-        #self.setLineWrapMode(QTextEdit.NoWrap)
-#        self.setLineWrapColumnOrWidth(160)
-        executeBlockShortcut = QShortcut(self)
-        executeBlockShortcut.setKey(QKeySequence(Qt.SHIFT+Qt.Key_Return))
-        self.connect(executeBlockShortcut,SIGNAL("activated()"),self.executeBlock)
-        self.setChanged (False)
-        self.updateTab()
+    def setLineWrap(self,state):
+      self._lineWrap = state
+      if state:
+        self.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+      else:
+        self.setLineWrapMode(QPlainTextEdit.NoWrap)

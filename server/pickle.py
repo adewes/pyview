@@ -13,6 +13,7 @@ import time
 import sys
 import os
 import weakref
+import traceback
 
 DEBUG = False
 
@@ -28,11 +29,15 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
       while True:
-        lendata = self.request.recv(4)
-        if len(lendata) == 0:
-          return None
-        length = unpack("l",lendata)[0]
-        received = self.request.recv(length)
+        try:
+          lendata = self.request.recv(4)
+          if len(lendata) == 0:
+            return None
+          length = unpack("l",lendata)[0]
+          received = self.request.recv(length)
+        except socket.error:
+          #The connection was closed...
+          return
         binary = received
         while len(received)>0 and len(binary) < length:
           received = self.request.recv(length-len(binary))
@@ -49,10 +54,13 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             returnMessage = Command(name = "return",args = [result])
             self.request.send(returnMessage.toString())
           except Exception as exception:
-            print "An exception occured:%s"% str(exception)
+            print "An exception occured:"
             print "args: %s" % str(m.args())
             print "kwargs: %s" % str(m.kwargs())
-            returnMessage = Command(name = "exception",args = [exception])
+            print "-"*40
+            traceback.print_exc()
+            print "-"*40
+            returnMessage = Command(name = "exception",args = [traceback.format_exc()])
             self.request.send(returnMessage.toString())
 
 ThreadedTCPRequestHandler.manager = RemoteManager(MyManager)

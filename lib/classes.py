@@ -4,6 +4,7 @@ Some convenience classes for managing instruments and frontpanels.
 from xml.dom.minidom import Document
 from xml.dom.minidom import parse, parseString
 
+import traceback
 import binascii
 import socket
 import threading
@@ -12,7 +13,6 @@ import sys
 import os
 import random
 import time 
-
 
 try:
   import visa
@@ -94,10 +94,13 @@ class VisaInstrument(Instrument):
       """
       Return the VISA handle for this instrument.
       """
-      if self._handle == None or forceReload:
+      if forceReload or self._handle == None:
         try:
           if self._handle != None:
-            self._handle.close()
+            try:
+              self._handle.close()
+            except:
+              pass
             self._handle = None
         except:
           pass
@@ -182,7 +185,6 @@ class ServerConnection:
     sock.connect((self._ip, self._port))
     return sock
     
-    
   def ip(self):
     return self._ip
     
@@ -211,7 +213,7 @@ class ServerConnection:
         raise Exception("Connection to server %s port %d failed." % (self._ip,self._port))
       if response.name() == "exception" and len(response.args()) > 0:
         #If something went wrong, the exception that was raised will be transmitted as the first return argument.
-        raise response.args()[0]
+        sys.stderr.write(response.args()[0])
       return response.args()[0]
     except:
       self._socket = self.openConnection()
@@ -220,8 +222,8 @@ class ServerConnection:
   def __getattr__(self,attr):
     return lambda *args,**kwargs:self._send(attr,args,kwargs)
 
-
 class RemoteInstrument(ThreadedDispatcher,Reloadable,object):
+
 
   def __init__(self,name,server,baseclass = None, args = [],kwargs = {},forceReload = False):
     ThreadedDispatcher.__init__(self)
@@ -243,17 +245,25 @@ class RemoteInstrument(ThreadedDispatcher,Reloadable,object):
     
   def name(self):
     """We redefine name, since it is already defined as an attribute in Thread
-    """
+    """ 
     return self.remoteDispatch("name")
 
   def __getitem__(self,key):
-    return self.remoteDispatch("__getitem__",[key])
+    return self.remoteDispatch("__getitem__",[str(key)])
 
   def __setitem__(self,key,value):
+    print "Setting %s" % key
     return self.remoteDispatch("__setitem__",[key,value])
 
   def __delitem__(self,key):
     return self.remoteDispatch("__delitem__",[key])
+    
+  def getAttribute(self,attr):
+    return self.remoteDispatch("__getattr__",[attr])
+    
+  def setAttribute(self,attr,value):
+    return self.remoteDispatch("__setattr__",[attr,value])
       
   def __getattr__(self,attr):
     return lambda *args,**kwargs:self.remoteDispatch(attr,args,kwargs)
+        

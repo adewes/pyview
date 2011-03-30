@@ -154,6 +154,8 @@ class MyMplCanvas(FigureCanvas):
         
         if dialog.result() == QDialog.Accepted:
           filename = dialog.textValue()
+        else:
+          return
         if filename == "":
           filename = "no name"
         baseName = ""+filename

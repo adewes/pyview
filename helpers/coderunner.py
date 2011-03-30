@@ -28,9 +28,9 @@ class CodeThread (KillableThread):
   def run(self):
     try:
       code = compile(self.code,self._source,'exec')
-      exec(code,self._lv,self._gv)
+      exec(code,self._gv,self._lv)
     except StopThread:
-      print "Thread termination requested, exiting..."
+      pass
     except:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       self._exception_type = exc_type
@@ -41,17 +41,27 @@ class CodeThread (KillableThread):
     finally:
       if not self._callback == None:
         self._callback(self)
+  
 
 class CodeRunner(Reloadable,Subject):
+
+  _id = 0
+  
+  def getId(self):
+    CodeRunner._id+=1
+    return CodeRunner._id
 
   def __init__(self,gv = dict(),lv = dict()):
     Reloadable.__init__(self)
     Subject.__init__(self)
+    self.clear(gv = gv,lv = lv)
+    
+  def clear(self,gv = dict(),lv = dict()):
     self._gv = gv
-    self._lv = lv
+    self._lv = dict()
     self._threads = dict()
     self._exceptions = []
-
+    
   def clearExceptions(self):
     self._exceptions = []
     
@@ -94,11 +104,107 @@ class CodeRunner(Reloadable,Subject):
     if self.isExecutingCode(identifier):
       return False
     if lv == None:
-      lv = self._lv
+      if not identifier in self._lv:
+        self._lv[identifier] = dict()
+      lv = self._lv[identifier]
     if gv == None:
       gv = self._gv
-    ct = CodeThread(code,source = filename,lv = lv,gv = gv,callback = self.threadCallback)
+    
+    class GlobalVariables:
+      
+      def __init__(self,gv):
+        self.__dict__ = gv
+        
+    gvClass = GlobalVariables(gv)
+    
+    lv["gv"] = gvClass
+    
+    ct = CodeThread(code,source = filename,lv = lv,gv = lv,callback = self.threadCallback)
     self._threads[identifier] = ct
     ct.setDaemon(True)
     ct.start()
     return True
+    
+from multiprocessing import *
+from pyview.helpers.coderunner import *
+import time
+import numpy
+import threading
+
+class CodeProcess(Process):
+
+  class StreamProxy(object):
+  
+    def __init__(self,queue):
+      self._queue = queue
+      
+    def write(self,output):
+      self._queue.put(output)
+      
+  def __init__(self):
+    Process.__init__(self)
+    self._commandQueue = Queue()
+    self._responseQueue = Queue()
+    self._stdoutQueue = Queue()
+    self._stderrQueue = Queue()
+    self._codeRunner = CodeRunner()
+    
+  def commandQueue(self):
+    return self._commandQueue
+    
+  def responseQueue(self):
+    return self._responseQueue
+    
+  def stdoutQueue(self):
+    return self._stdoutQueue
+    
+  def stderrQueue(self):
+    return self._stderrQueue
+    
+  def run(self):
+    sys.stderr = self.StreamProxy(self._stderrQueue)
+    sys.stdout = self.StreamProxy(self._stdoutQueue)
+    while True:
+      while not self.commandQueue().empty():
+        (command,args,kwargs) = self.commandQueue().get()
+        if command == "stop":
+          exit(0)
+        if hasattr(self._codeRunner,command):
+          f = getattr(self._codeRunner,command)
+          r = f(*args,**kwargs)
+          self.responseQueue().put(r)
+
+    
+class MultiProcessCodeRunner():
+  
+  def __init__(self,gv = dict(),lv = dict()):
+    self._codeProcess = CodeProcess()
+    self._codeProcess.start()
+    
+  def dispatch(self,command,*args,**kwargs):
+    message = (command,args,kwargs)
+    self._codeProcess.commandQueue().put(message)
+    try:
+      response = self._codeProcess.responseQueue().get(timeout = 2)
+    except:
+      response = None
+    return response
+    
+  def codeProcess(self):
+    return self._codeProcess
+    
+  def stop(self):
+    
+    self._codeProcess.commandQueue().put(("stop",[],{}))
+    
+  def restart(self):
+    print "Restarting code runner..."
+    self._codeProcess.terminate()
+    self._codeProcess = CodeProcess()
+    self._codeProcess.start()
+    
+  def terminate(self):
+    self._codeProcess.terminate()
+    
+  def __getattr__(self,attr):
+    return lambda *args,**kwargs: self.dispatch(attr,*args,**kwargs)

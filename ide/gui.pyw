@@ -20,6 +20,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from pyview.ide.editor.codeeditor import *
 from pyview.ide.preferences import *
+from pyview.helpers.coderunner import MultiProcessCodeRunner
 
 import settings
 import datetime
@@ -168,16 +169,19 @@ class IDE(QMainWindow,ObserverWidget):
       if choice == no:
         e.ignore()
         return
-      self.Editor.closeEvent(e)  
-      
+      self.Editor.closeEvent(e)
+      print "Stopping code runner..."
+      self._codeRunner.terminate()
+            
     def preferences(self):
       if not hasattr(self,'_preferences'):
         self._preferences = Preferences(path = params["directories.setup"]+"\\config\\")
       return self._preferences
 
-    def changeWorkingPath(self):
-      path = self.dirModel.filePath(self.BrowserWidget.currentIndex())
-      if path == '':
+    def changeWorkingPath(self,path = None):
+      if path == None:
+        path = QFileDialog.getExistingDirectory(self,"Change Working Path")
+      if not os.path.exists(path):
         return
       os.chdir(unicode(path)) 
       self.preferences().set('defaultDir',path)
@@ -186,32 +190,15 @@ class IDE(QMainWindow,ObserverWidget):
         
     def onTimer(self):
       mpl_backend.updateFigures()
-      
-    def openFile(self,index):
-      print "Opening a file..."
-      path = unicode(self.dirModel.filePath(index))
-      if os.path.exists(path) and os.path.isfile(path):
-        self.Editor.openFile(path)   
-        
+              
     def setupCodeEnvironmentCallback(self,thread):
       print "Done setting up code environment..."
       
     def setupCodeEnvironment(self):
-
-      print "Setting up code environment..."
-                  
-      startupPath = params["directories.setup"]+"/config/startup.py"
-      if os.path.exists(startupPath):   
-        startupFile = open(startupPath,"r")
-        content = startupFile.read()+"\n"
-        self._codeRunner.executeCode(content,self,filename = startupPath)
-      else:
-        print "Invalid startup file:",startupPath
+      self._codeRunner.clear()
+      self._codeRunner.executeCode('__import__("config.startup",globals(),globals())',-1,"<init script>",self._codeRunner.gv(),self._codeRunner.gv())
       
-    def changeDirectory(self,path):
-      index = self.dirModel.index(path,0)
-      if index != QModelIndex():
-        self.BrowserWidget.setCurrentIndex(index)
+      
       
     def codeRunner(self):
       return self._codeRunner
@@ -232,23 +219,6 @@ class IDE(QMainWindow,ObserverWidget):
         self.LeftBottomDock.setWindowTitle("Log")
         self.RightBottomDock.setWindowTitle("File Browser")
 
-        
-        self.BrowserWidget = QTreeView()
-        
-        self.dirModel = QFileSystemModel()
-        self.dirModel.setRootPath("")
-        self.dirModel.setFilter(QDir.AllDirs | QDir.Drives | QDir.NoDotAndDotDot)
-#        self.dirModel.setReadOnly(False)
-        
-        self.BrowserWidget.setModel(self.dirModel)
-        self.BrowserWidget.header().resizeSection(0,300)
-
-        self.connect(self.BrowserWidget,SIGNAL("doubleClicked(const QModelIndex&)"),self.openFile)
-          
-        if self.preferences().get('defaultDir') != None:
-          print "Setting default directory to %s" % self.preferences().get('defaultDir')
-          self.changeDirectory(self.preferences().get('defaultDir'))
-
         self.MyLog = Log()
         
         horizontalSplitter = QSplitter(Qt.Horizontal)
@@ -267,14 +237,13 @@ class IDE(QMainWindow,ObserverWidget):
         self.logTabs.addTab(self.errorConsole,"Traceback")
         
         self.tabs.setMaximumWidth(350)
-        self.tabs.addTab(self.BrowserWidget,"Files")
         horizontalSplitter.addWidget(self.tabs)
         horizontalSplitter.addWidget(self.Editor)
         verticalSplitter.addWidget(horizontalSplitter)
         verticalSplitter.addWidget(self.logTabs)
 
         StatusBar = self.statusBar()
-        self.workingPathLabel = QLabel("Working path: "+str(self.dirModel.rootDirectory()))
+        self.workingPathLabel = QLabel("Working path: ?")
         StatusBar.addWidget(self.workingPathLabel)  
 
         self.setCentralWidget(verticalSplitter)
@@ -366,10 +335,10 @@ class IDE(QMainWindow,ObserverWidget):
         self.errorProxy = LogProxy(self.MyLog.writeStderr)
         self.eventProxy = LogProxy(self.MyLog.writeStdout)
 
-        self.changeWorkingPath()
-                
-        settings.InitIDE(self)
+        if self.preferences().get('defaultDir') != None:
+          self.changeWorkingPath(self.preferences().get('defaultDir'))
 
+        settings.InitIDE(self)
 
         sys.stdout = self.eventProxy
         sys.stderr = self.errorProxy

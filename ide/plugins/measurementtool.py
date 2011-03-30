@@ -7,6 +7,8 @@ import pickle
 import cPickle
 import copy
 import yaml
+import datetime
+import time
 
 from pyview.config.parameters import params
 from pyview.ide.patterns import ObserverWidget
@@ -15,6 +17,7 @@ from pyview.config.parameters import *
 from pyview.lib.datacube import Datacube
 from pyview.helpers.datamanager import DataManager
 from pyview.ide.editor.codeeditor import CodeEditor
+
 from pyview.helpers.coderunner import CodeRunner
 from pyview.lib.classes import *
 
@@ -75,8 +78,33 @@ class CodeSnippet(Subject):
   def setName(self,name):
     self._name = name
 
-  def children(self):
-    return self._children
+  def children(self,name = None):
+    if name == None:
+      return self._children
+    else:
+      children = []
+      for child in self._children:
+        if child.name() == name:
+          children.append(child)
+      return children
+      
+  def root(self):
+    currentNode = self
+    while currentNode.parent() != None:
+      currentNode = currentNode.parent()
+    return currentNode
+
+  def offspring(self,path):
+    names = path.split("/")
+    node = self
+    while len(names)>0:
+      name = names.pop(0)
+      children = node.children(name)
+      if len(children) == 0:
+        return None
+      else:
+        node = children[0]
+    return node
     
   def hasChildren(self):
     if len(self._children) > 0:
@@ -414,8 +442,26 @@ class RunWindow(QWidget,ObserverWidget):
     manager.addDatacube(datacube)
     lv = dict()
     gv = self._codeRunner.gv()
-    gv["data"] = datacube
     lv["data"] = datacube
+    lv["dataManager"] = manager
+    lv["kwargs"] = dict()
+    
+    def executeCodeSnippet(path,root = self.codeSnippet().root(),*args,**kwargs):
+      snippet = root.offspring(path)
+      if snippet == None:
+        raise AttributeError("Code snippet \"%s\" not found!" % path)
+      lv["kwargs"] = kwargs
+      lv["args"] = args
+      exec snippet.codeSnippet() in gv,lv
+      
+    def loadArguments():
+      for argument in lv["kwargs"]:
+        lv[argument] = lv["kwargs"][argument]
+    
+      
+    lv["execute"] = executeCodeSnippet
+    lv["loadArguments"] = loadArguments
+    
     self._codeRunner.executeCode(self.codeSnippet().codeSnippet(),self,"<codeSnippet:%s>" % self._codeSnippet.name(),lv = lv)
     self.updateInterface()
     
@@ -436,10 +482,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     filename = QFileDialog.getSaveFileName(filter = "YAML(*.yml *.yaml)")
     if not filename == '':      
       self.save(filename)
-      MyMessageBox = QMessageBox()
-      MyMessageBox.setWindowTitle("Success!")
-      MyMessageBox.setText("The measurements have been saved at %s" % filename)
-      MyMessageBox.exec_()
+      print "Successfully saved the measurements at %s" % filename
     
   def openMeasurements(self):
     MyMessageBox = QMessageBox()
@@ -484,7 +527,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     self._runCodeSnippet = None
   
     self._preferences = preferences
-  
+    
     self.codeSnippetName = QLineEdit()
     self.addCodeSnippetButton = QPushButton("Add CodeSnippet")
     
@@ -521,6 +564,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     layout.addLayout(rightLayout,0,1,2,1)
     
     self.connect(self.codeSnippetName,SIGNAL("returnPressed()"),self.codeSnippetCreationRequested)
+    self.connect(self.addCodeSnippetButton,SIGNAL("clicked()"),self.codeSnippetCreationRequested)
 
     widget.setLayout(layout)
     
@@ -532,6 +576,12 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     self.codeSnippetTree.setModel(self._codeSnippetModel)
 
     self.restore()
+
+    if self._preferences.get("measurementtool.backupTime") == None or self._preferences.get("measurementtool.backupTime") - time.time() > 60*60*24:
+      print "Backing up measurements..."
+      self.save(path = params["directories.setup"]+"\\config\\ramps-%s.yaml" % str(datetime.date.today()))
+      self._preferences.set("measurementtool.backupTime",time.time())
+  
     
   def currentCodeSnippet(self):
     return self._codeSnippetModel.getCodeSnippet(self.codeSnippetTree.currentIndex())
@@ -591,7 +641,7 @@ class CodeSnippetEditor(QWidget,ObserverWidget):
     ObserverWidget.__init__(self)
     self.root = None
     
-    self.codeEditor = CodeEditor()
+    self.codeEditor = CodeEditor(lineWrap = False)
 
     layout = QGridLayout()
     

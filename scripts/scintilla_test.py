@@ -8,13 +8,22 @@ Note : name this file "qt4_sci_test.py"
 """
 
 import sys
-from PySide.QtGui import QApplication
-from PySide import QtCore, QtGui
-from PySide.Qsci import QsciScintilla, QsciScintillaBase, QsciLexerPython
+from PyQt4.QtGui import QApplication
+from PyQt4 import QtCore, QtGui
+from PyQt4.Qsci import QsciScintilla, QsciScintillaBase, QsciLexerPython
+
+class MyScintilla(QsciScintilla):
+  
+  def __init__(self):
+    QsciScintilla.__init__(self)
+    
+  def keyPressEvent(self,e):
+    print "Key pressed!"
+    QsciScintilla.keyPressEvent(self,e)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    editor = QsciScintilla()
+    editor = MyScintilla()
 
     ## define the font to use
     font = QtGui.QFont()

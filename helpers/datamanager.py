@@ -46,12 +46,12 @@ class DataManager(Singleton,Reloadable,ThreadedDispatcher,Subject,Observer):
     
   def addDatacube(self,datacube,atRoot = False):
     if atRoot == False and not self._master == None:
-      if not datacube in self._master.allChildren():
+      if not datacube in self._master.children():
         self._master.addChild(datacube)
         self.notify("added",datacube)
         datacube.attach(self)
       return True
-    if not datacube in self._root.allChildren():
+    if not datacube in self._root.children():
       self._root.addChild(datacube)
       self.notify("added",datacube)
       datacube.attach(self)
