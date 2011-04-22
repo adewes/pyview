@@ -98,7 +98,17 @@ class Log(LineTextWidget):
         self.connect(self.timer,SIGNAL("timeout()"),self.addQueuedText)
         self.timer.start()
         self.cnt=0
+        
+    def contextMenuEvent(self,event):
+      MyMenu = self.createStandardContextMenu()
+      MyMenu.addSeparator()
+      clearLog = MyMenu.addAction("clear log")
+      self.connect(clearLog,SIGNAL("triggered()"),self.clearLog)
+      MyMenu.exec_(self.cursor().pos())
 
+    def clearLog(self):
+      self.clear()
+        
     def addQueuedText(self): 
       if self._writing:
         return
@@ -106,10 +116,10 @@ class Log(LineTextWidget):
         return
       self.moveCursor(QTextCursor.End)
       if self.queuedStdoutText != "":
-        self.insertPlainText(self.queuedStdoutText)
+        self.textCursor().insertText(self.queuedStdoutText)
       #Insert error messages with an orange background color.
       if self.queuedStderrText != "":
-        cursor = QTextCursor(self.textCursor())
+        cursor = self.textCursor()
         cursor.movePosition(QTextCursor.End)
         oldFormat = cursor.blockFormat()
         format = QTextBlockFormat()
@@ -196,9 +206,11 @@ class IDE(QMainWindow,ObserverWidget):
       
     def setupCodeEnvironment(self):
       self._codeRunner.clear()
-      self._codeRunner.executeCode('__import__("config.startup",globals(),globals())',-1,"<init script>",self._codeRunner.gv(),self._codeRunner.gv())
-      
-      
+      self._codeRunner.executeCode("""import sys;
+if "config.startup" in sys.modules:
+  reload(sys.modules["config.startup"])
+__import__("config.startup",globals(),globals())
+""",-1,"<init script>",self._codeRunner.gv(),self._codeRunner.gv())
       
     def codeRunner(self):
       return self._codeRunner

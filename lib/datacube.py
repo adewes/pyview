@@ -68,10 +68,13 @@ class Datacube(Subject,Observer,Reloadable):
     self._adjustTable()
     
   def parent(self):
-    return self._parent
+    if self._parent == None:
+      return None
+    return self._parent()
     
   def setParent(self,parent):
-    self._parent = parent
+    if parent != None:
+      self._parent = weakref.ref(parent)
     
   def index(self):
     return self._meta["index"]
@@ -587,8 +590,7 @@ class Datacube(Subject,Observer,Reloadable):
       cube = Datacube()
       cube.loadFromHdf5Object(child)
       attributes = yaml.load(child.attrs["attributes"])
-      item = ChildItem(cube,attributes)
-      self._children.append(item)
+      self.addChild(cube,**attributes)
       
     return True
 
@@ -827,8 +829,7 @@ class Datacube(Subject,Observer,Reloadable):
           if not os.path.isabs(path):
             path = directory + "/" + path
           datacube.loadtxt(path)
-          item = ChildItem(datacube,child["attributes"])
-          self._children.append(item)
+          self.addChild(datacube,**child["attributes"])
 
     tableFilename = directory+"/"+data['tablefilename']
 

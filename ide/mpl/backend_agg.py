@@ -21,6 +21,7 @@ drawLabel = None
 figureMap = dict()
 nFigures = 0
 figures = None
+doUpdateFigures = False
 drawingWidgets = 0
 
 class MyMainWindow(QMainWindow):
@@ -78,10 +79,16 @@ def updateFigures():
   global drawLabel
   global figureTabs
   global drawingWidgets
+  global doUpdateFigures
 
   if drawingWidgets > 0:
     return
-
+  
+  if not doUpdateFigures:
+    return
+    
+  doUpdateFigures = False
+  
   #We check the update list for figures...
   while len(updateList)>0:
     figure = updateList.pop(0)
@@ -99,10 +106,10 @@ def updateFigures():
     for i in range(0,len(managers)):
       if managers[i].canvas.figure == figure:
         try:
-          managers[i].window.update()
+          managers[i].canvas.draw_idle()
           if hasattr(figure,'_name'):
             figureTabs.setTabText(i,figure._name)
-          figureTabs.setCurrentIndex(i)
+#          figureTabs.setCurrentIndex(i)
           isUpdating = False
           drawWidget.show()
         except:
@@ -114,7 +121,7 @@ def updateFigures():
           
     managers.append(MyManager)
     try:
-      MyManager.window.update()
+      MyManager.canvas.draw_idle()
       if hasattr(figure,'_name'):
         figureTabs.addTab(MyManager.window,figure._name)
       else:
@@ -144,24 +151,30 @@ def figure(name,*args,**kwargs):
     fig._lock = RLock()
   fig._name = name
   return fig
-    
-##This function can be called from any thread...
-def draw():
-  fig = matplotlib.pyplot.gcf()
-  if not hasattr(fig,'_lock'):
-    fig._lock = RLock()
-  try:
-    fig._lock.acquire()
-    fig.canvas.draw()
-  except:
-    pass
-  finally:
-    fig._lock.release()
-    addToUpdateList(fig)
-    
+
+def show():
+    """
+    Show all the figures and enter the qt main loop
+    This should be the last line of your script
+    """
+    global doUpdateFigures
+    doUpdateFigures = True
+        
 def draw_if_interactive():
   """
   Replacement for matplotlib.draw_if_interactive.
   Adds the figure that needs to be redrawn to an update list.
   """
-  draw()
+  fig = matplotlib.pyplot.gcf()
+  addToUpdateList(fig)
+  if matplotlib.is_interactive():
+    doUpdateFigures = True
+    if not hasattr(fig,'_lock'):
+      fig._lock = RLock()
+    try:
+      fig._lock.acquire()
+      fig.canvas.draw()
+    except:
+      pass
+    finally:
+      fig._lock.release()
