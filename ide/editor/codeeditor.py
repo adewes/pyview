@@ -2,7 +2,6 @@ import re
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
 from syntaxhighlighter import *
-from pyview.ide.preferences import *
 from pyview.config.parameters import *
 from pyview.helpers.coderunner import CodeRunner
 
@@ -133,11 +132,9 @@ class CodeEditorWindow(QWidget):
       for i in range(0,self.Tab.count()):
         widget = self.Tab.widget(i)
         if widget.fileName() != None:
-          openFiles.append(widget.fileName())
-      if self.preferences() == None:
-        return
-      self.preferences().set('openFiles',openFiles)
-      self.preferences().save()
+          openFiles.append(QString(widget.fileName()))
+      settings = QSettings()
+      settings.setValue('Editor/OpenFiles',openFiles)
         
     def closeEvent(self,e):
       self.saveTabState()
@@ -163,16 +160,12 @@ class CodeEditorWindow(QWidget):
     def codeRunner(self):
       return self._codeRunner
       
-    def preferences(self):
-      return self._preferences
-
-    def __init__(self,parent=None,gv = dict(),lv = dict(),codeRunner = CodeRunner(),preferences = None):
+    def __init__(self,parent=None,gv = dict(),lv = dict(),codeRunner = CodeRunner()):
         self.editors = []
         self.count = 1
         self._gv = gv
         self._lv = lv
         self._codeRunner = codeRunner
-        self._preferences = preferences
         QWidget.__init__(self,parent)
 
         MyLayout = QGridLayout()
@@ -195,12 +188,13 @@ class CodeEditorWindow(QWidget):
 
         self.Tab.setTabsClosable(True)
         self.connect(self.Tab,SIGNAL("tabCloseRequested(int)"),self.closeTab)
-        if not self.preferences() == None:
-          openFiles = self.preferences().get('openFiles')
+        settings = QSettings()
+        if settings.contains("Editor/OpenFiles"):
+          openFiles = settings.value("Editor/OpenFiles").toList()
           if openFiles != None:
             for file in openFiles:
               editor = self.newEditor()
-              editor.openFile(file)  
+              editor.openFile(file.toString())  
           else:
             self.newEditor()
         MyLayout.addWidget(self.Tab,0,0)

@@ -498,7 +498,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     if not filename == '':      
       self.restore(filename)
             
-  def __init__(self,codeRunner,preferences,parent = None):
+  def __init__(self,codeRunner,parent = None):
     QMainWindow.__init__(self,parent)
     ObserverWidget.__init__(self)
     
@@ -526,8 +526,6 @@ class MeasurementTool(QMainWindow,ObserverWidget):
     
     self._runCodeSnippet = None
   
-    self._preferences = preferences
-    
     self.codeSnippetName = QLineEdit()
     self.addCodeSnippetButton = QPushButton("Add CodeSnippet")
     
@@ -548,7 +546,7 @@ class MeasurementTool(QMainWindow,ObserverWidget):
 
     widget = QWidget()
     
-    self.codeSnippetEditor = CodeSnippetEditor(preferences = preferences)
+    self.codeSnippetEditor = CodeSnippetEditor()
     self.codeSnippetTree.setTool(self)
     
     rightLayout = QBoxLayout(QBoxLayout.TopToBottom)
@@ -577,10 +575,12 @@ class MeasurementTool(QMainWindow,ObserverWidget):
 
     self.restore()
 
-    if self._preferences.get("measurementtool.backupTime") == None or self._preferences.get("measurementtool.backupTime") - time.time() > 60*60*24:
+    settings = QSettings()
+
+    if (not settings.contains("MeasurementTool/backupTime")) or settings.value("MeasurementTool/backupTime").toInt() - time.time() > 60*60*24:
       print "Backing up measurements..."
       self.save(path = params["directories.setup"]+"\\config\\ramps-%s.yaml" % str(datetime.date.today()))
-      self._preferences.set("measurementtool.backupTime",time.time())
+      settings.setValue("MeasurementTool/backupTime",time.time())
   
     
   def currentCodeSnippet(self):
@@ -636,7 +636,7 @@ class CodeSnippetEditor(QWidget,ObserverWidget):
     if property == "codeSnippet" or all:
       self.root.setCodeSnippet(unicode(self.codeEditor.toPlainText()))
              
-  def __init__(self,preferences,parent = None):
+  def __init__(self,parent = None):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     self.root = None
@@ -650,7 +650,6 @@ class CodeSnippetEditor(QWidget,ObserverWidget):
     layout.addWidget(self.codeEditor)
     self.connect(self.codeEditor,SIGNAL("textChanged()"),lambda property = "codeSnippet":self.updateCodeSnippetProperty(property))
     self.codeEditor.activateHighlighter()
-    self._preferences = preferences
     self.updateCodeSnippetInfo()
     self.setLayout(layout)
     

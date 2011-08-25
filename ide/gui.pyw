@@ -19,16 +19,16 @@ import pyview.ide.mpl.backend_agg as mpl_backend
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
 from pyview.ide.editor.codeeditor import *
-from pyview.ide.preferences import *
 from pyview.helpers.coderunner import MultiProcessCodeRunner
 
-import settings
+import settings as ideSettings
 import datetime
 import time
 import re
 
 from pyview.ide.patterns import ObserverWidget
 from pyview.config.parameters import params
+from objectmodel import *
 
 import pyview.helpers.instrumentsmanager
 
@@ -180,22 +180,20 @@ class IDE(QMainWindow,ObserverWidget):
         e.ignore()
         return
       self.Editor.closeEvent(e)
-      print "Stopping code runner..."
-      self._codeRunner.terminate()
             
-    def preferences(self):
-      if not hasattr(self,'_preferences'):
-        self._preferences = Preferences(path = params["directories.setup"]+"\\config\\")
-      return self._preferences
 
     def changeWorkingPath(self,path = None):
+
+      settings = QSettings()
+
       if path == None:
         path = QFileDialog.getExistingDirectory(self,"Change Working Path")
       if not os.path.exists(path):
         return
       os.chdir(unicode(path)) 
-      self.preferences().set('defaultDir',path)
-      self.preferences().save()
+      
+      settings.setValue("IDE/WorkingPath",path)
+      
       self.workingPathLabel.setText("Working path:"+os.getcwd())
         
     def onTimer(self):
@@ -239,7 +237,7 @@ __import__("config.startup",globals(),globals())
         gv = dict()
 
         self._codeRunner = CodeRunner(gv = gv,lv = gv)
-        self.Editor = CodeEditorWindow(codeRunner = self._codeRunner,preferences = self.preferences())
+        self.Editor = CodeEditorWindow(codeRunner = self._codeRunner)
         self.errorConsole = ErrorConsole(codeEditorWindow = self.Editor,codeRunner = self._codeRunner)
         
         self.tabs = QTabWidget()
@@ -252,7 +250,11 @@ __import__("config.startup",globals(),globals())
         horizontalSplitter.addWidget(self.tabs)
         horizontalSplitter.addWidget(self.Editor)
         verticalSplitter.addWidget(horizontalSplitter)
-        verticalSplitter.addWidget(self.logTabs)
+        #verticalSplitter.addWidget(self.logTabs)
+        
+        self.objectTree = ObjectTree() 
+        self.tabs.addTab(self.objectTree,"Project")        
+
 
         StatusBar = self.statusBar()
         self.workingPathLabel = QLabel("Working path: ?")
@@ -261,7 +263,7 @@ __import__("config.startup",globals(),globals())
         self.setCentralWidget(verticalSplitter)
         
         self.MyMenuBar = self.menuBar()
-        
+                
         FileMenu = self.MyMenuBar.addMenu("File")
         
         newIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/filenew.png')
@@ -301,6 +303,10 @@ __import__("config.startup",globals(),globals())
 
         self.editMenu = self.MyMenuBar.addMenu("Edit")
         self.viewMenu = self.MyMenuBar.addMenu("View")
+
+        showLog = self.viewMenu.addAction("Show Log")
+        self.connect(showLog,SIGNAL("triggered()"),lambda :self.logTabs.show())
+
         self.toolsMenu = self.MyMenuBar.addMenu("Tools")
         self.settingsMenu = self.MyMenuBar.addMenu("Settings")
         self.windowMenu = self.MyMenuBar.addMenu("Window")
@@ -347,17 +353,27 @@ __import__("config.startup",globals(),globals())
         self.errorProxy = LogProxy(self.MyLog.writeStderr)
         self.eventProxy = LogProxy(self.MyLog.writeStdout)
 
-        if self.preferences().get('defaultDir') != None:
-          self.changeWorkingPath(self.preferences().get('defaultDir'))
+        settings = QSettings()
 
-        settings.InitIDE(self)
+        if settings.contains('Editor/WorkingPath'):
+          self.changeWorkingPath(settings.value('Editor/WorkingPath').toString())
+
+#        ideSettings.InitIDE(self)
 
         sys.stdout = self.eventProxy
         sys.stderr = self.errorProxy
 
+        self.logTabs.show()
+
+
 def startIDE(qApp = None):
   if qApp == None:
     qApp = QApplication(sys.argv)
+
+  QCoreApplication.setOrganizationName("Andreas Dewes")
+  QCoreApplication.setOrganizationDomain("cea.fr")
+  QCoreApplication.setApplicationName("Python Code IDE")
+
   qApp.setStyle(QStyleFactory.create("QMacStyle"))
   qApp.setStyleSheet("""
 QTreeWidget:Item {padding:6;}
