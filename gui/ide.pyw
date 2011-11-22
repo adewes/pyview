@@ -9,28 +9,19 @@ import threading
 
 import random
 import time
-
-#Matplotlib settings: Enable interactive plotting with custom backend.
-import matplotlib
-matplotlib.use('module://pyview.ide.mpl.backend_agg')
-import matplotlib.pyplot
-import pyview.ide.mpl.backend_agg as mpl_backend
+import objectmodel
 
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
-from pyview.ide.editor.codeeditor import *
+from pyview.gui.editor.codeeditor import *
 from pyview.helpers.coderunner import MultiProcessCodeRunner
 
-import settings as ideSettings
 import datetime
 import time
 import re
 
 from pyview.ide.patterns import ObserverWidget
 from pyview.config.parameters import params
-from objectmodel import *
-
-import pyview.helpers.instrumentsmanager
 
 class LogProxy:
   
@@ -151,6 +142,20 @@ class Log(LineTextWidget):
         self.queuedStdoutText += text
       finally:
         self._writing = False
+
+class ProjectTree(QTreeWidget):
+
+  def __init__(self,parent = None,project = None):
+    self._project = project
+    QTreeWidget.__init__(self,parent)
+    
+  def setProject(self,project):
+    if self._project != None:
+      self._project.detach(self)
+    self._project = project
+    
+  def project(self):
+    return self._project
         
 class IDE(QMainWindow,ObserverWidget):
 
@@ -180,7 +185,20 @@ class IDE(QMainWindow,ObserverWidget):
         e.ignore()
         return
       self.Editor.closeEvent(e)
+      self._codeRunner.terminate()
+        
+    def executeCode(self,code,identifier = "main",filename = "none",editor = None):
+      if self._codeRunner.executeCode(code,identifier,filename) != -1:
+        self._runningCodeSessions.append((code,identifier,filename,editor))
+        if editor != None:
+          editor.updateTab(running = True)
             
+    def eventFilter(self,object,event):
+      if event.type() == QEvent.KeyPress:
+        if event.key() == Qt.Key_Enter and type(object) == CodeEditor:
+          self.executeCode(object.getCurrentCodeBlock(),filename = object.filename() or "[undefined filename]",editor = object,identifier = id(object))
+          return True
+      return False
 
     def changeWorkingPath(self,path = None):
 
@@ -195,28 +213,64 @@ class IDE(QMainWindow,ObserverWidget):
       settings.setValue("IDE/WorkingPath",path)
       
       self.workingPathLabel.setText("Working path:"+os.getcwd())
-        
-    def onTimer(self):
-      mpl_backend.updateFigures()
-              
+                      
     def setupCodeEnvironmentCallback(self,thread):
       print "Done setting up code environment..."
       
     def setupCodeEnvironment(self):
-      self._codeRunner.clear()
-      self._codeRunner.executeCode("""import sys;
-if "config.startup" in sys.modules:
-  reload(sys.modules["config.startup"])
-__import__("config.startup",globals(),globals())
-""",-1,"<init script>",self._codeRunner.gv(),self._codeRunner.gv())
+      pass
       
     def codeRunner(self):
       return self._codeRunner
+      
+    def terminateCodeExecution(self):
+      currentEditor = self.Editor.currentEditor()
+      for session in self._runningCodeSessions:
+        (code,identifier,filename,editor) = session
+        if editor == currentEditor:
+          print "Stopping execution..."
+          self._codeRunner.stopExecution(identifier)
+      
+    def onTimer(self):
+      for session in self._runningCodeSessions:
+        (code,identifier,filename,editor) = session
+        if self._codeRunner.isExecutingCode(identifier):
+          if editor != None:
+            editor.updateTab(running = True)
+          pass
+        else:
+          if self._codeRunner.hasFailed(identifier):
+            if editor != None:
+              editor.updateTab(failed = True,running = False)
+          else:
+            if editor != None:
+              editor.updateTab(running = False,failed = False)
+          del self._runningCodeSessions[self._runningCodeSessions.index(session)]
+      sys.stdout.write(self._codeRunner.stdout())
+      sys.stderr.write(self._codeRunner.stderr())
 
     def __init__(self,parent=None):
         QMainWindow.__init__(self,parent)
         ObserverWidget.__init__(self)
-
+        
+        self._timer = QTimer(self)
+        self._runningCodeSessions = []
+        
+        self._project = objectmodel.Object()
+        
+        folder = objectmodel.Folder("Experiment")
+        
+        file = objectmodel.File("testfile","c:\\testfile.txt")
+        
+        folder.addChild(file)
+        self._project.addChild(folder)
+        
+        self._timer.setInterval(500)
+        
+        self.connect(self._timer,SIGNAL("timeout()"),self.onTimer)
+        
+        self._timer.start()
+        
         self.setWindowTitle("Python Lab IDE, A. Dewes")
         
         
@@ -236,8 +290,9 @@ __import__("config.startup",globals(),globals())
 
         gv = dict()
 
-        self._codeRunner = CodeRunner(gv = gv,lv = gv)
-        self.Editor = CodeEditorWindow(codeRunner = self._codeRunner)
+        self._codeRunner = MultiProcessCodeRunner(gv = gv,lv = gv)
+
+        self.Editor = CodeEditorWindow(self,ide = self)
         self.errorConsole = ErrorConsole(codeEditorWindow = self.Editor,codeRunner = self._codeRunner)
         
         self.tabs = QTabWidget()
@@ -250,10 +305,11 @@ __import__("config.startup",globals(),globals())
         horizontalSplitter.addWidget(self.tabs)
         horizontalSplitter.addWidget(self.Editor)
         verticalSplitter.addWidget(horizontalSplitter)
-        #verticalSplitter.addWidget(self.logTabs)
+        verticalSplitter.addWidget(self.logTabs)
+        verticalSplitter.setStretchFactor(0,2)
         
-        self.objectTree = ObjectTree() 
-        self.tabs.addTab(self.objectTree,"Project")        
+        self.projectTree = ProjectTree() 
+        self.tabs.addTab(self.projectTree,"Project")        
 
 
         StatusBar = self.statusBar()
@@ -320,6 +376,8 @@ __import__("config.startup",globals(),globals())
 
         self.MyToolbar.addSeparator()
         
+        print params["path"]+params['directories.crystalIcons']
+        
         executeAll = self.MyToolbar.addAction(QIcon(params['path']+params['directories.crystalIcons']+'/actions/run.png'),"Run")
         executeBlock = self.MyToolbar.addAction(QIcon(params['path']+params['directories.crystalIcons']+'/actions/kde1.png'),"Run Block")
         executeSelection = self.MyToolbar.addAction(QIcon(params['path']+params['directories.crystalIcons']+'/actions/kde4.png'),"Run Selection")
@@ -328,12 +386,10 @@ __import__("config.startup",globals(),globals())
 
         changeWorkingPath = self.MyToolbar.addAction(workingPathIcon,"Change working path")
         killThread = self.MyToolbar.addAction(killThreadIcon,"Kill Thread")
+        
+        self.connect(killThread,SIGNAL("triggered()"),self.terminateCodeExecution)
 
-        self.connect(executeBlock, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().executeBlock())
-        self.connect(executeSelection, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().executeSelection())
-        self.connect(executeAll, SIGNAL('triggered()'), lambda :  self.Editor.Tab.currentWidget().executeAll())
         self.connect(changeWorkingPath, SIGNAL('triggered()'), self.changeWorkingPath)
-        self.connect(killThread, SIGNAL('triggered()'), self.Editor.stopExecution)
 
         self.connect(newFile, SIGNAL('triggered()'), self.Editor.newEditor)
         self.connect(openFile, SIGNAL('triggered()'), self.Editor.openFile)
@@ -343,11 +399,7 @@ __import__("config.startup",globals(),globals())
         self.setWindowIcon(QIcon(params['path']+params['directories.crystalIcons']+'/apps/penguin.png'))
         
         #We add a timer
-        self.timer = QTimer(self)
-        self.timer.setInterval(400)
         self.queuedText = ""
-        self.connect(self.timer,SIGNAL("timeout()"),self.onTimer)
-        self.timer.start()
         
                 
         self.errorProxy = LogProxy(self.MyLog.writeStderr)
@@ -358,12 +410,13 @@ __import__("config.startup",globals(),globals())
         if settings.contains('Editor/WorkingPath'):
           self.changeWorkingPath(settings.value('Editor/WorkingPath').toString())
 
-        ideSettings.InitIDE(self)
-
         sys.stdout = self.eventProxy
         sys.stderr = self.errorProxy
 
         self.logTabs.show()
+        
+        print "tes"
+
 
 
 def startIDE(qApp = None):

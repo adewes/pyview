@@ -18,6 +18,7 @@ class DataManager(Singleton,Reloadable,ThreadedDispatcher,Subject,Observer):
   def __init__(self):
     if hasattr(self,"_initialized"):
       return
+      
     self._initialized = True
     print "Initializing data manager..."
     Singleton.__init__(self)

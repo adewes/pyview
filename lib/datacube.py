@@ -29,7 +29,9 @@ class ChildItem:
     
 #This is a hirarchical data storage class. A datacube stores a 2-dimensional array of values. Each array len(self._table[self._index,:])) is identified by a name. In addition, you can add one or more "child datacubes" to each row of the array, thus creating a multidimensional data model.
 class Datacube(Subject,Observer,Reloadable):
-
+  """
+  This is a hirarchical data storage class. A datacube stores a 2-dimensional array of values. Each array len(self._table[self._index,:])) is identified by a name. In addition, you can add one or more "child datacubes" to each row of the array, thus creating a multidimensional data model.
+  """
   defaults = dict()
 
   version = "0.2"
@@ -70,11 +72,11 @@ class Datacube(Subject,Observer,Reloadable):
   def parent(self):
     if self._parent == None:
       return None
-    return self._parent()
+    return self._parent
     
   def setParent(self,parent):
     if parent != None:
-      self._parent = weakref.ref(parent)
+      self._parent = parent
     
   def index(self):
     return self._meta["index"]
@@ -214,12 +216,14 @@ class Datacube(Subject,Observer,Reloadable):
       self._meta["fieldMap"][self._meta["fieldNames"][i]] = i
                 
   def clear(self):
+  
+  
+  
     """
     Resets the datacube to its initial state
     """
     self.initDatacube()
     
-
   def table(self):
     """
     Returns the data table

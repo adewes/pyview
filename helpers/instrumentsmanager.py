@@ -329,7 +329,6 @@ class Manager(Subject,Singleton):
     else:
       passedKwArgs = handle.kwargs()
 
-
     if handle._remote == True:
       if handle._remoteServer.hasInstrument(handle._name):
         handle._remoteServer.reloadInstrument(handle._name,handle._baseClass,passedArgs,passedKwArgs)

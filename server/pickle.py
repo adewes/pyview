@@ -20,9 +20,6 @@ DEBUG = False
 from pyview.helpers.instrumentsmanager import *
 from pyview.lib.classes import *
 
-MyManager = Manager()
-
-
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
     manager = None
@@ -63,8 +60,6 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             returnMessage = Command(name = "exception",args = [traceback.format_exc()])
             self.request.send(returnMessage.toString())
 
-ThreadedTCPRequestHandler.manager = RemoteManager(MyManager)
-
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     pass
 
@@ -73,6 +68,9 @@ def client(ip, port, message):
     print conn.instrument("qubit1mwg","anritsu_mwg",[],{},False)
     for i in range(0,10):
       print conn.dispatch("qubit1mwg","frequency")
+
+MyManager = Manager()
+ThreadedTCPRequestHandler.manager = RemoteManager(MyManager)
 
 if __name__ == "__main__":
   startServer()

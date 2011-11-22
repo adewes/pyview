@@ -577,10 +577,9 @@ class MeasurementTool(QMainWindow,ObserverWidget):
 
     settings = QSettings()
 
-    if (not settings.contains("MeasurementTool/backupTime")) or settings.value("MeasurementTool/backupTime").toInt() - time.time() > 60*60*24:
-      print "Backing up measurements..."
-      self.save(path = params["directories.setup"]+"\\config\\ramps-%s.yaml" % str(datetime.date.today()))
-      settings.setValue("MeasurementTool/backupTime",time.time())
+    print "Backing up measurements..."
+    self.save(path = params["directories.setup"]+"\\config\\ramps-%s.yaml" % str(datetime.date.today()))
+    settings.setValue("MeasurementTool/backupTime",time.time())
   
     
   def currentCodeSnippet(self):
