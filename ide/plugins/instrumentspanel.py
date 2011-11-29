@@ -6,6 +6,7 @@ import string
 import yaml
 import pickle
 import traceback
+import time
 
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
@@ -82,6 +83,11 @@ class InstrumentsArea(QMainWindow,ObserverWidget):
     self._windows[frontPanel] = widget
     widget.setWindowFlags(Qt.WindowSystemMenuHint | Qt.WindowTitleHint | Qt.CustomizeWindowHint | Qt.WindowCloseButtonHint)
 
+class InstrumentList(QTreeWidget):
+
+  def mouseDoubleClickEvent(self,e):
+    QTreeWidget.mouseDoubleClickEvent(self,e)
+    self.emit(SIGNAL("showFrontPanel()"))
 
 class InstrumentsPanel(QWidget,ObserverWidget):
 
@@ -121,6 +127,7 @@ class InstrumentsPanel(QWidget,ObserverWidget):
       panel.show()
       self.dashboards[name] = panel
       panel.activateWindow()
+      
   
   def restoreSetup(self):
     name = str(self.setupList.currentText())
@@ -191,15 +198,24 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     self._instrumentsArea = InstrumentsArea()
     self.manager = pyview.helpers.instrumentsmanager.Manager()
     self.setMinimumHeight(200)
-    self._picklePath = params["directories.setup"]+r"/config/setups.pickle"
+    settings = QSettings()
+    if settings.contains("directories.setup"):
+      setupPath = str(settings.value("directories.setup").toString())
+    else:
+      setupPath = os.getcwd()
+    self._picklePath = setupPath+r"/config/setups.pickle"
     self.loadStates()
     self.dashboards = dict()
     self.setWindowTitle("Instruments")
     layout = QGridLayout()
         
-    self.instrumentlist = QTreeWidget()
+    self.instrumentlist = InstrumentList()
+    
+    self.connect(self.instrumentlist,SIGNAL("showFrontPanel()"),self.showFrontPanel)
+    
     self.instrumentlist.setSelectionMode(QAbstractItemView.ExtendedSelection)
     self.instrumentlist.setHeaderLabels(["Name","Base Class","Args","Kwargs"])
+    
     
     self.setupList = QComboBox()
     self.setupList.setEditable(True)
@@ -237,4 +253,43 @@ class InstrumentsPanel(QWidget,ObserverWidget):
 
     self.setLayout(layout)
     self.updateStateList()
- 
+
+from threading import Thread
+
+class GuiThread(Thread):
+
+  def __init__(self):
+    Thread.__init__(self)
+    self._initialized = False
+
+  def execFunction(self,f):
+    print "Executing a function..."
+    f()
+
+  def exec_(self,f):
+    cnt = 0
+    while self._initialized == False:
+      time.sleep(0.001)
+      cnt+=1 
+      if cnt> 1000:
+        raise Exception
+    print f
+    self.app.emit(SIGNAL("execFunction(PyQt_PyObject)"),f)
+
+  def run(self):
+    self.app = QApplication(sys.argv)
+    self._panel = InstrumentsPanel()
+    self._panel.show()
+    self._panel.connect(self.app,SIGNAL("execFunction(PyQt_PyObject)"),self.execFunction)
+    self._initialized = True
+    self.app.exec_()
+
+
+def sayHello():
+  print "Hello!"
+
+if __name__ == '__main__':
+  guiThread = GuiThread()
+  guiThread.start()
+  guiThread.exec_(sayHello)
+  print "done"

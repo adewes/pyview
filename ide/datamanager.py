@@ -6,6 +6,13 @@ import weakref
 import gc
 import time
 
+from pyview.gui.coderunner import execInGui
+
+from pyview.ide.mpl.canvas import *
+reload(sys.modules['pyview.ide.mpl.canvas'])
+from pyview.ide.mpl.canvas import *
+
+
 import pyview.helpers.datamanager as dm
 from pyview.lib.datacube import *
 from pyview.lib.classes import *
@@ -13,9 +20,6 @@ from pyview.lib.patterns import *
 from pyview.ide.datacubeview import *
 reload(sys.modules['pyview.ide.datacubeview'])
 from pyview.ide.datacubeview import *
-from pyview.ide.mpl.canvas import *
-reload(sys.modules['pyview.ide.mpl.canvas'])
-from pyview.ide.mpl.canvas import *
 from pyview.ide.patterns import ObserverWidget
 
 import numpy
@@ -588,6 +592,10 @@ class DataManager(QMainWindow,ObserverWidget):
     self._cubes = []
     self._cube = None
     
+    self.setStyleSheet("""
+    QTreeWidget:Item {padding:6;} 
+    QTreeView:Item {padding:6;}""")
+
     leftLayout = QGridLayout()
     
     leftLayout.addWidget(self.datacubeList)
@@ -628,34 +636,17 @@ class DataManager(QMainWindow,ObserverWidget):
     self.tabs.addTab(self.datacubeViewer,"Table View")
     self.selectCube(None,None)
 
-def startDataManagerThread():
-  thread = DataManagerThread()
-  thread.setDaemon(False)
-  thread.start()
 
-def startDataManager(qApp = None):
-  if qApp == None:
-    qApp = QApplication(sys.argv)
-  qApp.setStyle(QStyleFactory.create("QMacStyle"))
-  qApp.setStyleSheet("""
-QTreeWidget:Item {padding:6;}
-QTreeView:Item {padding:6;}
-  """)
-  qApp.connect(qApp, SIGNAL('lastWindowClosed()'), qApp,
-                    SLOT('quit()'))
+def startDataManager(exitWhenClosed = False):
+  global dataManager
   dataManager = DataManager()
   dataManager.show()
-  qApp.exec_()
-  
-  print "Exiting..."
-  
-class DataManagerThread(threading.Thread):
+  app = QApplication.instance()
+  app.setQuitOnLastWindowClosed(exitWhenClosed)
 
-  def __init__(self):
-    threading.Thread.__init__(self)
+def startDataManagerInGui(exitWhenClosed = False):
+  execInGui(lambda :startDataManager(exitWhenClosed))
 
-  def run(self):
-    startDataManager(None)
-          
 if __name__ == '__main__':
-  starDataManagerThread()
+  startDataManagerInGui(True)
+  print "done..."

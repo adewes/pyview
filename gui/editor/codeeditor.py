@@ -74,6 +74,29 @@ class ErrorConsole(QTreeWidget,ObserverWidget):
         exceptionItem.addChild(item)
         item.setText(0,filename)
         item.setText(1,str(line_number))
+
+class EditorTabBar(QTabBar):
+
+  def __init__(self,parent = None):
+    QTabBar.__init__(self,parent)
+    self._startDragPosition = None
+
+  def mousePressEvent(self,e):
+    self._startDragPosition = e.pos()
+    QTabBar.mousePressEvent(self,e)
+    print "ok..."
+    
+  def mouseMoveEvent(self,e):
+    if (e.buttons() & Qt.LeftButton):
+      if (e.pos()-self._startDragPosition).manhattanLength() > QApplication.startDragDistance():
+        drag = QDrag(self)
+        mimeData = QMimeData()
+        mimeData.setData("action","url-dragging")
+        tab = self.tabAt(self._startDragPosition)
+        mimeData.setData("url",str(self.tabToolTip(tab)))
+        drag.setMimeData(mimeData)
+        drag.exec_()
+    QTabBar.mouseMoveEvent(self,e)
           
 class CodeEditorWindow(QWidget):
 
@@ -160,6 +183,10 @@ class CodeEditorWindow(QWidget):
         MyLayout = QGridLayout()
         
         self.Tab = QTabWidget()
+        
+        self.tabBar = EditorTabBar()
+        
+        self.Tab.setTabBar(self.tabBar)
         
         self.Tab.setTabsClosable(True)
         self.connect(self.Tab,SIGNAL("tabCloseRequested(int)"),self.closeTab)
@@ -571,7 +598,10 @@ class SearchableEditor(QPlainTextEdit):
       self.showSearchBar()
     elif (e.key() == Qt.Key_Escape):
       self.hideSearchBar()
-    elif (e.key() == Qt.Key_Enter or e.key() == Qt.Key_Return) and self._panel.isVisible():
+    if not self._panel.isVisible():
+      e.ignore()
+      return
+    elif (e.key() == Qt.Key_Enter or e.key() == Qt.Key_Return):
       e.accept()
       self.searchText()
     elif e.key() == Qt.Key_Up or e.key() == Qt.Key_Down:
@@ -703,13 +733,14 @@ class CodeEditor(SearchableEditor,LineTextWidget):
           file = open(filename,'r')
           text = file.read()   
         except IOError:
-          print "Could not read file!"
-          return False
+          raise
         self.setPlainText(text)
         self._setFileName(filename)
         self.updateTab()
         self.setChanged(False)
         return True
+      else:
+        raise IOError("Invalid path: %s" % filename)
       return False
             
     def setChanged(self,hasChanged = True):
@@ -767,6 +798,8 @@ class CodeEditor(SearchableEditor,LineTextWidget):
         FileName = QFileDialog.getOpenFileName(filter = "Python(*.py *.pyw)")
       if os.path.isfile(FileName):
           return self._openCode(FileName)
+      else:
+        raise IOError("Invalid path: %s" % FileName)
       return False
 
     def autoIndentCurrentLine(self):

@@ -15,7 +15,7 @@ import os
 import weakref
 import traceback
 
-DEBUG = False
+DEBUG = True
 
 from pyview.helpers.instrumentsmanager import *
 from pyview.lib.classes import *

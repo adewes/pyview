@@ -173,11 +173,8 @@ class CodeProcess(Process):
     def write(self,output):
       self._queue.put(output)
       
-    def read(self):
-      if not self._queue.empty():
-        return self._queue.get(False)
-      else:
-        return ""
+    def read(self,blocking = True):
+      return self._queue.get(blocking)
       
   def __init__(self):
     Process.__init__(self)
@@ -231,23 +228,30 @@ class MultiProcessCodeRunner():
   def __init__(self,gv = dict(),lv = dict()):
     self._codeProcess = CodeProcess()
     self._codeProcess.start()
+    self._timeout = 2
 
   def __del__(self):
     self.terminate()
+    
+  def setTimeout(self,timeout):
+    self._timeout = timeout
+    
+  def timeout(self):
+    return self._timeout
     
   def dispatch(self,command,*args,**kwargs):
     message = (command,args,kwargs)
     if not self._codeProcess.is_alive():
       self.restart()
-    self._codeProcess.commandQueue().put(message)
+    self._codeProcess.commandQueue().put(message,False)
     try:
-      response = self._codeProcess.responseQueue().get()
+      response = self._codeProcess.responseQueue().get(timeout = self.timeout())
     except:
       response = None
     return response
 
   def stdin(self,input):
-    self._codeProcess.stdinQueue().put(input)
+    self._codeProcess.stdinQueue().put(input,False)
 
   def hasStdout(self):
     return not self._codeProcess.stdoutQueue().empty()
@@ -271,7 +275,7 @@ class MultiProcessCodeRunner():
     return self._codeProcess
     
   def stop(self):
-    self._codeProcess.commandQueue().put(("stop",[],{}))
+    self._codeProcess.commandQueue().put(("stop",[],{}),False)
     
   def start(self):
     if self._codeProcess.is_alive():
