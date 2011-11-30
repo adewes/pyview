@@ -625,7 +625,7 @@ class CodeEditor(SearchableEditor,LineTextWidget):
         LineTextWidget.__init__(self,parent)
         SearchableEditor.__init__(self,parent)
         self._filename = None
-        self.setTabStopWidth(20)
+        self.setTabStopWidth(30)
         self._tabWidget = None
         self._windowManager = None
         self._modifiedAt = None
@@ -639,8 +639,17 @@ class CodeEditor(SearchableEditor,LineTextWidget):
         self.connect(self._MyTimer,SIGNAL("timeout()"),self.onTimer)
         self._MyTimer.start(500)
         self.setAttribute(Qt.WA_DeleteOnClose,True)
-        MyFont = QFont("Courier",10)
-        self.setDefaultFont(MyFont)
+        
+        self.setStyleSheet("""
+        CodeEditor,NumberBar
+        {
+          color:#000;
+          background:#EEF;
+          font-family:Consolas, Courier New,Courier;
+          font-size:14px;
+          font-weight:normal;
+        }
+        """)
         self.connect(self.document(), SIGNAL('modificationChanged(bool)'), self.updateUndoStatus)
         self.connect(self, SIGNAL("cursorPositionChanged()"),self.cursorPositionChanged)
         self.setLineWrap(lineWrap)

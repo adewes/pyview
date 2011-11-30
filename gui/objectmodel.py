@@ -9,7 +9,12 @@ class Object(object,Subject):
     self._children = []
     self._name = name
     self.setParent(parent)
-    
+  
+  def hasChildren(self):
+    if len(self._children) > 0:
+      return True
+    return False      
+  
   def dump(self):
     return {'name':self.name()}
     
@@ -39,17 +44,20 @@ class Object(object,Subject):
       raise KeyError("Not a child of mine!")
     return self._children.index(child)
     
-  def addChild(self,child):
-    if child.parent() != self:
+  def insertChild(self,index,child):
+    if not child in self._children:
+      self._children.insert(index,child)
       child.setParent(self)
+
+  def addChild(self,child):
+    child.setParent(self)
     if child not in self._children:
       self._children.append(child)
     
   def removeChild(self,child):
     if child in self._children:
-      child.setParent(None)
       del self._children[self._children.index(child)]
-      print "Removing child %s from %s" % (child.name(),self.name())
+      child.setParent(None)
     else:
       raise KeyError("not my child!")
       
@@ -68,13 +76,7 @@ class Object(object,Subject):
     self._name = name
     
   def setParent(self,parent):
-    if self._parent != None:
-      oldParent = self._parent
-      self._parent = None
-      oldParent.removeChild(self)
     self._parent = parent
-    if self.parent() != None:
-      self.parent().addChild(self)
     
   def parent(self):
     return self._parent

@@ -5,6 +5,7 @@ import os.path
 import random
 import time
 import objectmodel
+import projecttree
 import yaml
 import re
 
@@ -104,211 +105,6 @@ class Log(LineTextWidget):
         self.queuedStdoutText += text
       finally:
         self._writing = False
-
-class ProjectTree(QTreeWidget):
-
-  def __init__(self,parent = None):
-    QTreeWidget.__init__(self,parent)
-    self._project = objectmodel.Object()
-    self._nodeMap = dict()
-    self._startDragPosition = None
-    self._dragItem = None
-    self.setHeaderLabels([""])
-    self.connect(self,SIGNAL("itemDoubleClicked(QTreeWidgetItem *,int)"),self.itemDoubleClicked)
-    self.setAcceptDrops(True)
-    self.loadFromSettings()
-    self.saveToSettings()
-    
-  def loadFromSettings(self):
-    settings = QSettings()
-    if settings.contains("project.file_tree"):        
-      projectparams = yaml.load(str(settings.value("project.file_tree").toString()))
-      converter = objectmodel.Converter()
-      self._project = converter.load(projectparams)
-      self.buildView()
-    else:
-      raise KeyError("Cannot find project in settings!")
-      
-  def saveToSettings(self):
-    settings = QSettings()
-    converter = objectmodel.Converter()
-    print yaml.dump(converter.dump(self._project))
-    settings.setValue("project.file_tree",yaml.dump(converter.dump(self._project)))
-    settings.sync()
-    
-  def dropEvent(self,e):
-    if e.source() == self and e.mimeData().data("action") == "item-dragging" and self._dragItem != None:
-      item = self.itemAt(e.pos())
-      if item == None:
-        item = self.invisibleRootItem()
-
-      endNode = self.findNodeForItem(item)
-      startNode = self.findNodeForItem(self._dragItem)
-      
-      if endNode == None or startNode == None:
-        return
-      
-      while type(endNode) is not objectmodel.Folder and endNode.parent() != None:
-        endNode = endNode.parent()
-      
-      if startNode.isAncestorOf(endNode):
-        return
-        
-      print "Moving %s to %s" % (startNode.name(),endNode.name())
-        
-      self.removeNodeFromView(startNode)
-      
-      endNode.addChild(startNode)
-      
-      print endNode.name()
-      
-      self.addNodeToView(startNode)
-
-    elif e.mimeData().data("action") == "url-dragging":
-      item = self.itemAt(e.pos())
-      if item == None:
-        item = self.invisibleRootItem()
-      node = self.findNodeForItem(item)
-      if node == None:
-        return
-      while type(node) is not objectmodel.Folder and node.parent() != None:
-        node = node.parent()
-      fileNode = objectmodel.File(url = str(e.mimeData().data("url")))
-      node.addChild(fileNode)
-      self.addNodeToView(fileNode)
-      QTreeWidget.dropEvent(self,e)
-
-    self.startDragPosition = None
-    self._dragItem = None
-
-  def deleteCurrentItem(self):
-    currentItem = self.currentItem()
-    node = self.findNodeForItem(currentItem)
-    if node == None:
-      return
-    response = QMessageBox.question(self,"Delete Item","Do you really want to delete this item?",buttons = QMessageBox.Yes | QMessageBox.No)
-    if response == QMessageBox.Yes:
-      self.removeNodeFromView(node)
-      node.setParent(None)
-
-  def createNewFolder(self):
-    currentItem = self.currentItem()
-    if currentItem == None:
-      currentItem = self.invisibleRootItem()
-    node = self.findNodeForItem(currentItem)
-    folder = objectmodel.Folder(name = "new folder")
-    node.addChild(folder)
-    self.addNodeToView(folder)
-    
-  def editCurrentItem(self):
-    pass
-
-  def keyPressEvent(self,e):
-    currentItem = self.currentItem()
-    node = self.findNodeForItem(currentItem)
-    if currentItem == None:
-      return
-    if e.key() == Qt.Key_Enter and type(node) == objectmodel.File:
-      print "Executing %s " % node.url()
-    if e.key() == Qt.Key_Delete:
-      if node == None:
-        return
-      self.deleteCurrentItem()
-    QTreeWidget.keyPressEvent(self,e)
-
-  def __del__(self):
-    self.saveToSettings()
-        
-  def addNodeToView(self,node):
-    ancestors = []
-    currentNode = node
-    if not node.parent() in self._nodeMap:
-      raise KeyError("Parent node not in view!")
-    item = self._nodeMap[node.parent()]
-    childItem = self.createItemForNode(node)
-    item.addChild(childItem)
-    for child in node.children():
-      self.addNodeToView(child)
-    
-  def removeNodeFromView(self,node):
-    for child in node.children():
-      self.removeNodeFromView(child)
-    if node not in self._nodeMap:
-      return
-    item = self._nodeMap[node]
-    if item.parent() == None:
-      parent = self.invisibleRootItem()
-    else:
-      parent = item.parent()
-    parent.removeChild(item)
-    del self._nodeMap[node]
-  
-  def createItemForNode(self,node):
-    item = QTreeWidgetItem()
-    item.setText(0,node.name())
-    self._nodeMap[node] = item
-    return item
-    
-  def mousePressEvent(self,e):
-    if e.buttons() & Qt.LeftButton:
-      item = self.itemAt(e.pos())
-      if item == None:
-        self.startDragPosition = None
-        self._dragItem = None
-        return
-      self._startDragPosition = e.pos()
-      self._dragItem = item
-    QTreeWidget.mousePressEvent(self,e)
-
-  def mouseMoveEvent(self,e):
-    if (e.buttons() & Qt.LeftButton) and self._startDragPosition != None:
-      if (e.pos()-self._startDragPosition).manhattanLength() > QApplication.startDragDistance():
-        drag = QDrag(self)
-        mimeData = QMimeData()
-        mimeData.setData("action","item-dragging")
-        drag.setMimeData(mimeData)
-        drag.exec_()
-    QTreeWidget.mouseMoveEvent(self,e)
-    
-    
-  def dragMoveEvent(self,e):
-    e.accept()
-    
-  def dragEnterEvent(self,e):
-    e.acceptProposedAction()
-    
-  def setProject(self,project):
-    if self._project != None:
-      self._project.detach(self)
-    self._project = project
-    self.buildView()
-    
-  def project(self):
-    return self._project
-
-  def findNodeForItem(self,item):
-    for key in self._nodeMap.keys():
-      if self._nodeMap[key] == item:
-        return key
-    return None
-      
-    
-  def itemDoubleClicked(self,item,column):
-    node = self.findNodeForItem(item)
-    if node == None:
-      return
-    if type(node) == objectmodel.File:
-      self.emit(SIGNAL("openFile(PyQt_PyObject)"),node.url())
-
-  def clear(self):
-    self._nodeMap = {}
-    QTreeWidget.clear(self)
-  
-  def buildView(self):
-    self.clear()
-    self._nodeMap[self._project] = self.invisibleRootItem()
-    for child in self._project.children():
-      self.addNodeToView(child)
         
 class IDE(QMainWindow,ObserverWidget):
 
@@ -458,16 +254,22 @@ class IDE(QMainWindow,ObserverWidget):
         
         self.projectWindow = QWidget()        
         
-        self.projectTree = ProjectTree() 
+        node = objectmodel.Folder("[project]")
+        node.addChild(objectmodel.Folder("experiment"))
+        node.addChild(objectmodel.Folder("theory"))
+        
+        self.projectTree = projecttree.ProjectView() 
+        self.projectModel = projecttree.ProjectModel(node)
+        self.projectTree.setModel(self.projectModel)
         self.projectToolbar = QToolBar()
         
         newFolder = self.projectToolbar.addAction("New Folder")
         edit = self.projectToolbar.addAction("Edit")
         delete = self.projectToolbar.addAction("Delete")
         
-        self.connect(newFolder,SIGNAL("triggered()"),self.projectTree.createNewFolder)
-        self.connect(edit,SIGNAL("triggered()"),self.projectTree.editCurrentItem)
-        self.connect(delete,SIGNAL("triggered()"),self.projectTree.deleteCurrentItem)
+#        self.connect(newFolder,SIGNAL("triggered()"),self.projectTree.createNewFolder)
+#        self.connect(edit,SIGNAL("triggered()"),self.projectTree.editCurrentItem)
+#        self.connect(delete,SIGNAL("triggered()"),self.projectTree.deleteCurrentItem)
 
         layout = QGridLayout()
         layout.addWidget(self.projectToolbar)
