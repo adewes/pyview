@@ -97,14 +97,12 @@ class File(Object):
     
   def setUrl(self,url):
     self._url = url
-    print url
-    match = re.search(r"^(.*\\|\/)([^\\\/]*)$",url)
+    match = re.search(r"^(.*[\\\/])([^\\\/]*)$",url)
     if match == None:
       print "Couldnt match url..."
       return
     head = match.group(1)
     tail = match.group(2)
-    print head,tail
     self.setName(tail)
     
     

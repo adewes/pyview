@@ -91,9 +91,9 @@ class EditorTabBar(QTabBar):
       if (e.pos()-self._startDragPosition).manhattanLength() > QApplication.startDragDistance():
         drag = QDrag(self)
         mimeData = QMimeData()
-        mimeData.setData("action","url-dragging")
         tab = self.tabAt(self._startDragPosition)
-        mimeData.setData("url",str(self.tabToolTip(tab)))
+        url = QUrl.fromLocalFile(str(self.tabToolTip(tab)))
+        mimeData.setUrls([url])
         drag.setMimeData(mimeData)
         drag.exec_()
     QTabBar.mouseMoveEvent(self,e)

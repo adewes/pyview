@@ -4,7 +4,7 @@ import os.path
 
 import random
 import time
-import objectmodel
+import pyview.gui.objectmodel as objectmodel
 import projecttree
 import yaml
 import re
@@ -14,6 +14,7 @@ from PyQt4.QtCore import *
 
 from pyview.gui.editor.codeeditor import *
 from pyview.gui.threadpanel import *
+from pyview.gui.project import Project
 from pyview.helpers.coderunner import MultiProcessCodeRunner
 from pyview.ide.patterns import ObserverWidget
 from pyview.config.parameters import params
@@ -121,21 +122,81 @@ class IDE(QMainWindow,ObserverWidget):
 
     def directory(self):
       return self.FileBrowser.directory()
+      
+    def saveProjectAs(self):
+      filename = QFileDialog.getSaveFileName(filter = "Project (*.prj)")
+      if filename != '' and os.path.isfile(filename):
+        self._project.saveToFile(filename)
+        self.updateWindowTitle()
+        return True
+      else:
+        return False
+
+    def saveProject(self):
+      if self._project.filename() != None:
+        self._project.saveToFile(self._project.filename())
+        self.updateWindowTitle()
+        return True
+      else:
+        return self.saveProjectAs()
+    
+    def newProject(self):
+      if self._project.hasUnsavedChanges():
+        MyMessageBox = QMessageBox()
+        MyMessageBox.setWindowTitle("Warning!")
+        MyMessageBox.setText("The current project has unsaved changed? Do you want to continue?")
+        yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
+        no = MyMessageBox.addButton("No",QMessageBox.NoRole)
+        MyMessageBox.exec_()
+        choice = MyMessageBox.clickedButton()
+        if choice == no:
+          return False
+      self.setProject(Project())
+      return True
+      
+    def openProject(self,filename = None):
+      if self.newProject() == False:
+        return False
+      if filename == None:
+        filename = QFileDialog.getOpenFileName(filter = "Project (*.prj)")
+      if os.path.isfile(filename):
+          project = Project()
+          project.loadFromFile(filename)
+          self.setProject(project)
+          return True
+      else:
+        raise IOError("Invalid path: %s" % filename)
+      return False
 
     def closeEvent(self,e):
-      MyMessageBox = QMessageBox()
-      MyMessageBox.setWindowTitle("Warning!")
-      MyMessageBox.setText("Do you really want to close the IDE?")
-      yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
-      no = MyMessageBox.addButton("No",QMessageBox.NoRole)
-      MyMessageBox.exec_()
-      choice = MyMessageBox.clickedButton()
-      if choice == no:
-        e.ignore()
-        return
+      if self._project.hasUnsavedChanges():
+        MyMessageBox = QMessageBox()
+        MyMessageBox.setWindowTitle("Warning!")
+        MyMessageBox.setText("Save changes made to your project?")
+        yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
+        no = MyMessageBox.addButton("No",QMessageBox.NoRole)
+        cancel = MyMessageBox.addButton("Cancel",QMessageBox.NoRole)
+        MyMessageBox.exec_()
+        choice = MyMessageBox.clickedButton()
+        if choice == cancel:
+          e.ignore()
+          return
+        elif choice == yes:
+          if self.saveProject() == False:
+            e.ignore()
+            return
+
+      settings = QSettings()
+      if self._project.filename() != None:
+        settings.setValue("ide.lastproject",self._project.filename())      
+      settings.sync()
+        
       self.Editor.closeEvent(e)
       self.projectTree.saveToSettings()
       self._codeRunner.terminate()
+      
+      ##We're saving our project...
+      
         
     def executeCode(self,code,identifier = "main",filename = "none",editor = None):
       if self._codeRunner.executeCode(code,identifier,filename) != -1:
@@ -158,11 +219,10 @@ class IDE(QMainWindow,ObserverWidget):
         path = QFileDialog.getExistingDirectory(self,"Change Working Path")
       if not os.path.exists(path):
         return
-      os.chdir(unicode(path)) 
-      
-      settings.setValue("IDE/WorkingPath",path)
-      
-      self.workingPathLabel.setText("Working path:"+os.getcwd())
+
+      self.codeRunner().executeCode("import os;os.chdir(unicode('%s'))" % path,"changeWorkingPath","")
+      settings.setValue("ide.workingpath",path)
+      self.workingPathLabel.setText("Working path:"+path)
                       
     def setupCodeEnvironmentCallback(self,thread):
       print "Done setting up code environment..."
@@ -201,6 +261,17 @@ class IDE(QMainWindow,ObserverWidget):
       
     def openFile(self,filename):
       self.Editor.openFile(filename)
+      
+    def setProject(self,project):
+      self._project = project
+      self.projectModel.setProject(project.tree())
+      self.updateWindowTitle()
+      
+    def updateWindowTitle(self):
+      if self._project.filename() != None:
+        self.setWindowTitle(self._windowTitle+ " - " + self._project.filename())
+      else:
+        self.setWindowTitle(self._windowTitle)
 
     def __init__(self,parent=None):
         QMainWindow.__init__(self,parent)
@@ -215,7 +286,9 @@ class IDE(QMainWindow,ObserverWidget):
         
         self._timer.start()
         
-        self.setWindowTitle("Python Lab IDE, A. Dewes")
+        self._windowTitle = "Python Lab IDE"
+        
+        self.setWindowTitle(self._windowTitle)
         
         
         self.setDockOptions(QMainWindow.AllowTabbedDocks	)
@@ -253,13 +326,9 @@ class IDE(QMainWindow,ObserverWidget):
         verticalSplitter.setStretchFactor(0,2)        
         
         self.projectWindow = QWidget()        
-        
-        node = objectmodel.Folder("[project]")
-        node.addChild(objectmodel.Folder("experiment"))
-        node.addChild(objectmodel.Folder("theory"))
-        
+                
         self.projectTree = projecttree.ProjectView() 
-        self.projectModel = projecttree.ProjectModel(node)
+        self.projectModel = projecttree.ProjectModel(objectmodel.Folder("[project]"))
         self.projectTree.setModel(self.projectModel)
         self.projectToolbar = QToolBar()
         
@@ -267,9 +336,9 @@ class IDE(QMainWindow,ObserverWidget):
         edit = self.projectToolbar.addAction("Edit")
         delete = self.projectToolbar.addAction("Delete")
         
-#        self.connect(newFolder,SIGNAL("triggered()"),self.projectTree.createNewFolder)
-#        self.connect(edit,SIGNAL("triggered()"),self.projectTree.editCurrentItem)
-#        self.connect(delete,SIGNAL("triggered()"),self.projectTree.deleteCurrentItem)
+        self.connect(newFolder,SIGNAL("triggered()"),self.projectTree.createNewFolder)
+        self.connect(edit,SIGNAL("triggered()"),self.projectTree.editCurrentItem)
+        self.connect(delete,SIGNAL("triggered()"),self.projectTree.deleteCurrentItem)
 
         layout = QGridLayout()
         layout.addWidget(self.projectToolbar)
@@ -291,7 +360,6 @@ class IDE(QMainWindow,ObserverWidget):
         
         self.MyMenuBar = self.menuBar()
                 
-        FileMenu = self.MyMenuBar.addMenu("File")
         
         newIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/filenew.png')
         openIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/fileopen.png')
@@ -301,6 +369,9 @@ class IDE(QMainWindow,ObserverWidget):
         exitIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/exit.png')
         workingPathIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/gohome.png')
         killThreadIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/stop.png')
+
+        FileMenu = self.MyMenuBar.addMenu("File")
+        projectMenu = self.MyMenuBar.addMenu("Project")
         
         fileNew = FileMenu.addAction(newIcon,"&New")
         fileNew.setShortcut(QKeySequence("CTRL+n"))
@@ -312,6 +383,11 @@ class IDE(QMainWindow,ObserverWidget):
         fileSave.setShortcut(QKeySequence("CTRL+s"))
         fileSaveAs = FileMenu.addAction(saveAsIcon,"Save &As")
         fileSaveAs.setShortcut(QKeySequence("CTRL+F12"))
+
+        projectNew = projectMenu.addAction(newIcon,"&New")
+        projectOpen = projectMenu.addAction(openIcon,"&Open")
+        projectSave = projectMenu.addAction(saveIcon,"&Save")
+        projectSaveAs = projectMenu.addAction(saveAsIcon,"Save &As")
 
         FileMenu.addSeparator()
 
@@ -325,6 +401,10 @@ class IDE(QMainWindow,ObserverWidget):
         self.connect(fileSaveAs, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFileAs())
         self.connect(fileExit, SIGNAL('triggered()'), self.close)
 
+        self.connect(projectNew, SIGNAL('triggered()'), self.newProject)
+        self.connect(projectOpen, SIGNAL('triggered()'), self.openProject)
+        self.connect(projectSave, SIGNAL('triggered()'), self.saveProject)
+        self.connect(projectSaveAs, SIGNAL('triggered()'), self.saveProjectAs)
         
         FileMenu.addSeparator()  
 
@@ -376,9 +456,17 @@ class IDE(QMainWindow,ObserverWidget):
 
         settings = QSettings()
 
-        if settings.contains('Editor/WorkingPath'):
-          self.changeWorkingPath(settings.value('Editor/WorkingPath').toString())
+        if settings.contains('ide.workingpath'):
+          self.changeWorkingPath(settings.value('ide.workingpath').toString())
 
+        self.setProject(Project())
+        
+        if settings.contains("ide.lastproject"):
+          try:
+            self.openProject(str(settings.value("ide.lastproject").toString()))
+          except:
+            print "Cannot open last project: %s " % str(settings.value("ide.lastproject").toString())
+        
         sys.stdout = self.eventProxy
         sys.stderr = self.errorProxy
 

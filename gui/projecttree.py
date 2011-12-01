@@ -1,5 +1,6 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
+import pyview.gui.objectmodel as objectmodel
   
 class ProjectModel(QAbstractItemModel):
   
@@ -9,6 +10,15 @@ class ProjectModel(QAbstractItemModel):
     self._nodeList = []
     self._dropAction = Qt.MoveAction
     self._mimeData = None
+    
+  def setProject(self,project):
+    self.beginResetModel()
+    self._root = project
+    self.endResetModel()
+    
+    
+  def project(self):
+    return self._root
     
   def headerData(self,section,orientation,role):
     if section == 1:
@@ -98,43 +108,59 @@ class ProjectModel(QAbstractItemModel):
 
   def mimeData(self,indexes):
     mimeData = QMimeData()
+    mimeData.setData("projecttree/internalMove","")
+    self._moveIndexes = indexes
     return mimeData
 
-  def addNode(self,node):
-    self.beginInsertRows(QModelIndex(),0,0)
-    self._root.insertChild(0,node)
+  def addNode(self,node,parent = QModelIndex()):
+    self.beginInsertRows(parent,0,0)
+    parentNode = self.getNode(parent)
+    parentNode.insertChild(0,node)
     self.endInsertRows()
     
   def dropMimeData(self,data,action,row,column,parent):
 
     if row == -1:
       row = 0
-      
+            
     if data != None:
       parentNode = self.getNode(parent)
       if parentNode == None:
         return False
-      print "dropping..."
-      if self._dropAction == Qt.MoveAction:
-        print "moving..."
-        for index in self._mimeData:
-          oldParent = index.parent()
-          oldParentNode = self.getNode(oldParent)
-          node = self.getNode(index)
-          rowOfChild = oldParentNode.children().index(node)
-          if oldParentNode == parentNode and rowOfChild == row:
+      if data.hasFormat("projecttree/internalMove"):
+        if self._dropAction == Qt.MoveAction:
+          parentNode = self.getNode(parent)
+          while type(parentNode) is not objectmodel.Folder:
+            if parentNode.parent() == None:
+              return False
+            parentNode = parentNode.parent()
+            parent = self.parent(parent)
+          for index in self._moveIndexes:
+            oldParent = index.parent()
+            oldParentNode = self.getNode(oldParent)
+            node = self.getNode(index)
+            rowOfChild = oldParentNode.children().index(node)
+            if oldParentNode == parentNode and rowOfChild == row:
+              return False
+            if node.isAncestorOf(parentNode):
+              return False
+            self.beginMoveRows(oldParent,rowOfChild,rowOfChild,parent,0)
+            oldParentNode.removeChild(node)
+            parentNode.insertChild(0,node)
+            self.endMoveRows()
+      elif data.hasUrls():
+        index = parent
+        while type(parentNode) != objectmodel.Folder:
+          if parentNode.parent() == None:
             return False
-          self.beginMoveRows(oldParent,rowOfChild,rowOfChild,parent,row)
-          oldParentNode.removeChild(node)
-          parentNode.insertChild(row,node)
-          self.endMoveRows()
-      else:
-        for index in self._mimeData:
-          self.beginInsertRows(parent,row,row)
-          node = self.getNode(index)
-          newNode = copy.deepcopy(node)
-          parentNode.insertChild(row,newNode)
-          self.endInsertRows()
+          index = self.parent(index)
+          parentNode = parentNode.parent()
+        for url in data.urls():
+          if url.toLocalFile() != "":
+            fileNode = objectmodel.File(url = str(url.toLocalFile()))
+            self.beginInsertRows(index,len(parentNode),len(parentNode))
+            parentNode.addChild(fileNode)
+            self.endInsertRows()
     return True
 
 class ProjectView(QTreeView):
@@ -151,40 +177,74 @@ class ProjectView(QTreeView):
     
   def dragEnterEvent(self,e):
     e.acceptProposedAction()
+            
+  def createNewFolder(self):
+    selectedIndices = self.selectedIndexes()
+    if len(selectedIndices) == 0:
+      index = QModelIndex()
+    else:
+      index = selectedIndices[0]
+    
+    node = self.model().getNode(index)
+    
+    while type(node) != objectmodel.Folder:
+      if node.parent() == None:
+        return
+      node = node.parent()
+      index = self.model().parent(index)
+      
+    dialog = QInputDialog()
+    dialog.setWindowTitle("New Folder")
+    dialog.setLabelText("Name")
+    dialog.setTextValue("")
+    dialog.exec_()
+    if dialog.result() == QDialog.Accepted:
+      node = objectmodel.Folder(str(dialog.textValue()))
+      self.model().addNode(node,index)
 
-  def renameNode(self):
+  def editCurrentItem(self):
 
     selectedItems = self.selectedIndexes()
     if len(selectedItems) == 1:
       index = selectedItems[0]
       node = self.model().getNode(index)
-      if node == None:
+      if node == None or type(node) != objectmodel.Folder:
         return
       dialog = QInputDialog()
-      dialog.setWindowTitle("Change Node Name")
-      dialog.setLabelText("New name")
+      dialog.setWindowTitle("Edit Folder")
+      dialog.setLabelText("Name")
       dialog.setTextValue(node.name())
       dialog.exec_()
       if dialog.result() == QDialog.Accepted:
         node.setName(str(dialog.textValue()))
       
-  def deleteNode(self):
-    message = QMessageBox(QMessageBox.Question,"Confirm deletion","Are you sure that you want to delete this node?", QMessageBox.Yes | QMessageBox.No)
-    message.exec_()
-    if message.standardButton(message.clickedButton()) != QMessageBox.Yes:
-      return 
+  def deleteCurrentItem(self):
     selectedItems = self.selectedIndexes()
     if len(selectedItems) == 1:
+      message = QMessageBox(QMessageBox.Question,"Confirm deletion","Are you sure that you want to delete this node?", QMessageBox.Yes | QMessageBox.No)
+      message.exec_()
+      if message.standardButton(message.clickedButton()) != QMessageBox.Yes:
+        return 
       self.model().deleteNode(selectedItems[0])
+
+  def mouseDoubleClickEvent(self,event):
+    index = self.indexAt(event.pos())
+    if index.isValid():
+      node = self.model().getNode(index)
+      if type(node) == objectmodel.File:
+        self.emit(SIGNAL("openFile(PyQt_PyObject)"),node.url())
+        event.accept()
+        return
+    QTreeView.mouseDoubleClickEvent(self,event)
 
   def getContextMenu(self,p):
     menu = QMenu()
     selectedItems = self.selectedIndexes()
     if len(selectedItems) == 1:
-      renameAction = menu.addAction("Rename")
-      self.connect(renameAction,SIGNAL("triggered()"),self.renameNode)
+      renameAction = menu.addAction("Edit")
+      self.connect(renameAction,SIGNAL("triggered()"),self.editCurrentItem)
       deleteAction = menu.addAction("Delete")
-      self.connect(deleteAction,SIGNAL("triggered()"),self.deleteNode)
+      self.connect(deleteAction,SIGNAL("triggered()"),self.deleteCurrentItem)
     menu.exec_(self.viewport().mapToGlobal(p))
         
   def selectionChanged(self,selected,deselected):

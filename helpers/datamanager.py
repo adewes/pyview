@@ -69,7 +69,6 @@ class DataManager(Singleton,Reloadable,ThreadedDispatcher,Subject,Observer):
     
   def clear(self):
     self._root.removeChildren(self._root.children())
-    self._root = Datacube()
     self.notify("cleared")
 
   def root(self):
