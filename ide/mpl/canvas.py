@@ -11,14 +11,7 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt4agg import FigureManagerQTAgg
 from matplotlib.figure import Figure
 from pyview.ide.editor.codeeditor import CodeEditor
-
-from matplotlib import rcParams
 from math import fabs
-
-rcParams['font.family'] = 'sans-serif'
-rcParams['font.size'] = '12'
-rcParams['interactive'] = True
-rcParams['font.sans-serif'] = ['Tahoma']
 
 class FigureManager(FigureManagerQTAgg):
   pass

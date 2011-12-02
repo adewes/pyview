@@ -13,6 +13,8 @@ import weakref
 import re
 import string
 
+testvar = "hello, world! Python rocks :) testsss"
+
 from pyview.lib.patterns import Subject,Observer,Reloadable
 
 class ChildItem:

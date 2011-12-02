@@ -61,13 +61,14 @@ class MyFigureCanvas(FigureCanvasQTAgg):
       self.figure._lock.release()
 
   def paintEvent(self,e):
-    if self.figure._lock.acquire(blocking = False) == False:
+#    if self.figure._lock.acquire(blocking = False) == False:
 #      addToUpdateList(self.figure)
-      return
+#      return
     try:
       FigureCanvasQTAgg.paintEvent(self,e)  
     finally:
-      self.figure._lock.release()
+       print 'i just removed something'
+#      self.figure._lock.release()
         
     
 ##This function should only be called from the main thread!!!

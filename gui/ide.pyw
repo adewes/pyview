@@ -189,6 +189,8 @@ class IDE(QMainWindow,ObserverWidget):
       settings = QSettings()
       if self._project.filename() != None:
         settings.setValue("ide.lastproject",self._project.filename())      
+      else:
+        settings.remove("ide.lastproject")
       settings.sync()
         
       self.Editor.closeEvent(e)

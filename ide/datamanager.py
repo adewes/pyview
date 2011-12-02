@@ -52,7 +52,288 @@ class Datacube2DPlot:
     pass
     
 class Plot3DWidget(QWidget,ObserverWidget):
-  pass
+  def nameSelector(self):
+    box = QComboBox()
+    box.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+    names = self._cube.names()
+    return box
+    
+  def updatePlot(self,clear = False):
+    if len(self._plots) == 0:
+      self.canvas.figure.clf()
+      self.canvas.axes = self.canvas.figure.add_subplot(111)
+      self.canvas.draw()
+      return
+    xnames = []
+    ynames = []
+    title = self._plots[0].cube.name()
+    legend = []
+    legendPlots = []
+    filenames = []
+    for plot in self._plots:
+      if plot.xname != "[row number]":
+        xvalues = plot.cube.column(plot.xname)
+      else:
+        xvalues = arange(0,len(plot.cube),1)
+      if plot.yname != "[row number]":
+        yvalues = plot.cube.column(plot.yname)
+      else:
+        yvalues = arange(0,len(plot.cube),1)
+
+      plot.lines.set_xdata(xvalues)
+      plot.lines.set_ydata(yvalues)
+      if not plot.xname in xnames:
+        xnames.append(plot.xname)
+      if not plot.yname in ynames:
+        ynames.append(plot.yname)
+      if not plot.cube.filename() in filenames and plot.cube.filename() != None:
+        legend.append(plot.yname+":"+plot.cube.filename()[:-4])
+        legendPlots.append(plot.lines)
+        filenames.append(plot.cube.filename())
+      #This is a bug in matplotlib. We have to call "recache" to make sure that the plot is correctly updated.
+      plot.lines.recache()
+    if self.canvas.axes.get_autoscale_on() == True:
+      self.canvas.axes.relim()
+      self.canvas.axes.autoscale_view()
+
+    self.canvas.axes.set_xlabel(", ".join(xnames))
+    self.canvas.axes.set_ylabel(", ".join(ynames))
+    self.canvas.axes.set_title(title)
+    if self._showLegend and len(legend) > 0:
+      from matplotlib.font_manager import FontProperties
+      self.canvas.axes.legend(legendPlots,legend,prop = FontProperties(size = 6))
+    else:
+      self.canvas.axes.legend_ = None 
+    self.canvas.draw()
+
+  def addPlot(self,xName=None,yName=None,**kwargs):
+    plot = Datacube2DPlot()
+    if xName==None and yName==None:
+      plot.xname = str(self.xNames.currentText())
+      plot.yname = str(self.yNames.currentText())
+    else:
+      plot.xname = xName
+      plot.yname = yName
+
+    if self._cube == None:
+      return
+
+    if ((not plot.xname in self._cube.names()) and plot.xname != "[row number]") or ((not plot.yname in self._cube.names())  and plot.yname != "[row number]"):
+      return
+    plot.cube = self._cube 
+    plot.legend = "%s, %s vs. %s" % (self._cube.name(),plot.xname,plot.yname)
+    plot.style = 'line'
+    if plot.xname != "[row number]":
+      xvalues = plot.cube.column(plot.xname)
+    else:
+      xvalues = arange(0,len(plot.cube),1)
+    if plot.yname != "[row number]":
+      yvalues = plot.cube.column(plot.yname)
+    else:
+      yvalues = arange(0,len(plot.cube),1)
+    plot.lines, = self.canvas.axes.plot(xvalues,yvalues,**kwargs)
+    self._cnt+=1
+    plot.cube.attach(self)
+    plot.lineStyleLabel = QLabel("line style") 
+    self._plots.append(plot)
+    
+    plotItem = QTreeWidgetItem([self._cube.name(),plot.xname,plot.yname,"line"])
+    self.plotList.addTopLevelItem(plotItem)
+    self.plotList.setItemWidget(plotItem,4,plot.lineStyleLabel)
+    self.plotList.update()
+    plot.item=plotItem
+    self.updatePlot()
+    
+  def clearPlots(self):
+    for plot in self._plots:
+      if plot.cube != self._cube:
+        plot.cube.detach(self)
+    self._plots = []
+    self._currentIndex = None
+    self.plotList.clear()
+    self._cnt = 0
+    self.updatePlot()
+    
+  def setDatacube(self,cube):
+    if self._cube != None:
+      found = False
+      for plot in self._plots:
+        if self._cube == plot.cube:
+          found = True
+      if found == False:
+        self._cube.detach(self)
+    self._cube = cube
+    cube.attach(self)
+    self.updateNames(cube.names())
+      
+  def updateNames(self,names):
+    self.xNames.clear()
+    self.yNames.clear()
+    self.xNames.addItem("[row number]")
+    self.yNames.addItem("[row number]")
+    for name in sorted(names):
+      self.xNames.addItem(name,name)    
+      self.yNames.addItem(name,name)
+      
+  def updatedGui(self,subject = None,property = None,value = None):
+    self._updated = False
+    if property == "names":
+      if subject == self._cube:
+        self.updateNames(value)
+      
+  def onTimer(self):
+    if self._updated == True:
+      return
+    self._updated = True
+    self.updatePlot()
+    
+  def showLegendStateChanged(self,state):
+    if state == Qt.Checked:
+      self._showLegend = True
+    else:
+      self._showLegend = False
+    self.updatePlot()
+
+  def __init__(self,parent = None):
+    QWidget.__init__(self,parent)
+    ObserverWidget.__init__(self)
+    self._cube = None
+    self._showLegend = True
+    self._plots = []
+    self._cnt = 0
+    self._lineColors = [(0,0,0),(0.8,0,0),(0.0,0,0.8),(0.0,0.5,0),(0.5,0.5,0.5),(0.8,0.5,0.0),(0.9,0,0.9)]
+    self._lineStyles = ['-','--','-.',':']
+    self._updated = False
+    self.xnames = []
+    self._currentIndex = None
+    self.ynames = []
+    self._plottedVariables =[]
+    self.legends = []
+    self.cubes = []
+    splitter = QSplitter(Qt.Vertical)
+    layout = QGridLayout()
+    self.timer = QTimer(self)
+    self.timer.setInterval(1000)
+    self.connect(self.timer,SIGNAL("timeout()"),self.onTimer)
+    self.timer.start()
+    self.props = QWidget()
+    self.canvas = MyMplCanvas(dpi = 72,width = 8,height = 4)
+    splitter.addWidget(self.canvas)
+    splitter.addWidget(self.props)
+    propLayout = QGridLayout()
+    self.xNames = QComboBox()
+    self.xNames.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+    self.addDefaultCurves=QPushButton("Autoplot")
+    self.addButton = QPushButton("Add Curve")
+    self.clearButton = QPushButton("Clear Plot")
+    self.yNames = QComboBox()
+    self.showLegend = QCheckBox("Show Legend")
+    self.showLegend.setCheckState(Qt.Checked)
+    self.yNames.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+
+    playout = QBoxLayout(QBoxLayout.LeftToRight)
+    playout.addWidget(QLabel("X:"))
+    playout.addWidget(self.xNames)
+    playout.addWidget(QLabel("Y:"))
+    playout.addWidget(self.yNames)
+    playout.addWidget(self.addButton)
+    playout.addWidget(self.showLegend)
+    playout.addStretch()
+    playout.addWidget(self.addDefaultCurves)
+    playout.addWidget(self.clearButton)
+    
+    self.connect(self.showLegend,SIGNAL("stateChanged(int)"),self.showLegendStateChanged)
+    self.connect(self.addDefaultCurves,SIGNAL("clicked()"),self.addDefaultPlot)
+    self.connect(self.addButton,SIGNAL("clicked()"),self.addPlot)
+    self.connect(self.clearButton,SIGNAL("clicked()"),self.clearPlots)
+    layout.addWidget(splitter)
+    
+    self.plotList = QTreeWidget()
+    self.lineStyles = QComboBox()
+    self.lineStyles.addItem("line","line")
+    self.lineStyles.addItem("scatter","scatter")
+    self.lineStyles.setSizePolicy(QSizePolicy.Maximum,QSizePolicy.Maximum)
+
+    self.plotList.setColumnCount(5)
+    self.plotList.setHeaderLabels(("Datacube","X variable","Y variable","style"))
+
+    removeButton = QPushButton("Remove line")
+    removeButton.setSizePolicy(QSizePolicy.Maximum,QSizePolicy.Maximum)
+
+    styleLabel = QLabel("Line style")
+    styleLabel.setSizePolicy(QSizePolicy.Maximum,QSizePolicy.Maximum)
+
+    linePropertiesLayout = QBoxLayout(QBoxLayout.LeftToRight)
+    linePropertiesLayout.addWidget(styleLabel)
+    linePropertiesLayout.addWidget(self.lineStyles)
+    linePropertiesLayout.addWidget(removeButton)
+    linePropertiesLayout.insertStretch(2)
+
+    self.connect(removeButton,SIGNAL("clicked()"),self.removeLine)
+    self.connect(self.plotList,SIGNAL("currentItemChanged(QTreeWidgetItem *,QTreeWidgetItem *)"),self.lineSelectionChanged)
+    self.connect(self.lineStyles,SIGNAL("currentIndexChanged(int)"),self.updateLineStyle)
+
+    propLayout.addLayout(playout,0,0)
+    propLayout.addWidget(self.plotList,1,0)
+
+    propLayout.addItem(linePropertiesLayout,2,0)
+
+    self.props.setLayout(propLayout)
+    self.setLayout(layout)
+    
+  def removeLine(self):
+    self._currentIndex = self.plotList.indexOfTopLevelItem(self.plotList.currentItem())
+    if self._currentIndex == -1 or self._currentIndex >= len(self._plots):
+      return
+    del self.canvas.axes.lines[self._currentIndex]
+    del self._plots[self._currentIndex]
+    self.plotList.takeTopLevelItem(self._currentIndex)
+    self._currentIndex = None
+    self.updatePlot(clear = True)
+    
+  def updateLineStyle(self,index):
+    self._currentIndex = self.plotList.indexOfTopLevelItem(self.plotList.currentItem())
+    if self._currentIndex == -1:
+      return
+    style = str(self.lineStyles.itemData(index).toString())
+    if self._plots[self._currentIndex].style == style:
+      return
+    if style == 'scatter':
+      self._plots[self._currentIndex].lines.set_linestyle('')
+      self._plots[self._currentIndex].lines.set_marker('o')
+    else:
+      self._plots[self._currentIndex].lines.set_linestyle('-')
+      self._plots[self._currentIndex].lines.set_marker('')
+    self._plots[self._currentIndex].style = style
+    self.updatePlot()
+    self._plots[self._currentIndex].item.setText(3,style)
+    
+  def updateLineProperties(self,index):
+    if index < len(self._plots):
+      self.lineStyles.setCurrentIndex(self.lineStyles.findData(self._plots[index].style))
+    
+  def lineSelectionChanged(self,selected,previous):
+    if selected != None:
+      index = self.plotList.indexOfTopLevelItem(selected)
+      self._currentIndex = index
+      self.updateLineProperties(index)
+  
+  def addDefaultPlot(self):
+    if 'defaultPlot' in self._cube.parameters():
+      for params in self._cube.parameters()["defaultPlot"]:
+        if len(params) == 3:
+          (xName,yName,kwargs) = params
+        else:
+          (xName,yName) = params
+          kwargs = {}
+        found = False
+        for plot in self._plots:
+          if plot.xname == xName and plot.yname == yName and plot.cube == self._cube:
+            found = True
+            break
+        if found:
+          continue
+        self.addPlot(xName=xName,yName=yName,**kwargs)
 
 class Plot2DWidget(QWidget,ObserverWidget):
   

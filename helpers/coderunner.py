@@ -3,7 +3,34 @@ import time
 import traceback
 from pyview.lib.patterns import KillableThread,Reloadable,StopThread,Subject
 from threading import RLock
+import __builtin__,os.path
 
+_importFunction = __builtin__.__import__
+_moduleDates = dict()
+
+def _autoReloadImport(name,*a):
+  global _importFunction
+  global _moduleDates
+  if name in sys.modules:
+    m = sys.modules[name]
+    if hasattr(m,'__file__'):
+      filename = m.__file__
+      if filename[-4:] == ".pyc":
+        filename = filename[:-1]
+      if filename[-3:] == ".py":
+        mtime = os.path.getmtime(filename)
+        if filename in _moduleDates:
+          if mtime > _moduleDates[filename]:
+            reload(m)
+        _moduleDates[filename] = mtime
+  return _importFunction(name,*a)
+
+def enableModuleAutoReload():
+  __builtin__.__import__ = _autoReloadImport
+  
+def disableModuleAutoReload():
+  __builtin__.__import__ = _importFunction  
+  
 class CodeThread (KillableThread):
 
   def __init__(self,code,gv = dict(),lv = dict(),callback = None,source = "<my string>"):
