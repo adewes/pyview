@@ -67,7 +67,7 @@ class MyFigureCanvas(FigureCanvasQTAgg):
     try:
       FigureCanvasQTAgg.paintEvent(self,e)  
     finally:
-       print 'i just removed something'
+      pass
 #      self.figure._lock.release()
         
     

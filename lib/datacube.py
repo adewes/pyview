@@ -13,8 +13,6 @@ import weakref
 import re
 import string
 
-testvar = "hello, world! Python rocks :) testsss"
-
 from pyview.lib.patterns import Subject,Observer,Reloadable
 
 class ChildItem:
@@ -32,7 +30,10 @@ class ChildItem:
 #This is a hirarchical data storage class. A datacube stores a 2-dimensional array of values. Each array len(self._table[self._index,:])) is identified by a name. In addition, you can add one or more "child datacubes" to each row of the array, thus creating a multidimensional data model.
 class Datacube(Subject,Observer,Reloadable):
   """
-  This is a hirarchical data storage class. A datacube stores a 2-dimensional array of values. Each array len(self._table[self._index,:])) is identified by a name. In addition, you can add one or more "child datacubes" to each row of the array, thus creating a multidimensional data model.
+  This is a hirarchical data storage class. 
+  
+  A datacube stores a 2-dimensional array of values. Each array len(self._table[self._index,:])) is identified by a name. In addition, you can add one or more "child datacubes" to each row of the array, thus creating a multidimensional data model.
+    
   """
   defaults = dict()
 
@@ -42,9 +43,14 @@ class Datacube(Subject,Observer,Reloadable):
     Subject.__init__(self)
     Observer.__init__(self)
     Reloadable.__init__(self)
-    self.initDatacube(*args,**kwargs)
+    self.initialize(*args,**kwargs)
     
-  def initDatacube(self,name = "datacube",description = "",filename = None,dtype = float64,defaults = None):
+  def initialize(self,name = "datacube",description = "",filename = None,dtype = float64,defaults = None):
+    
+    """
+    Initializes the data cube.
+    """
+    
     self._meta = dict()
     if defaults == None:
       defaults = Datacube.defaults
@@ -77,21 +83,31 @@ class Datacube(Subject,Observer,Reloadable):
     return self._parent
     
   def setParent(self,parent):
+    
+    """
+    Sets the parent of the data cube to *parent*.
+    """
+  
     if parent != None:
       self._parent = parent
     
   def index(self):
+  
+    """
+    Returns the current row index.
+    """
+  
     return self._meta["index"]
     
   def parameters(self):
     """
-    Returns the parameters of the datacube
+    Returns the parameters of the data cube. The parameter dictionary is saved along with the datacube.
     """
     return self._parameters
     
   def setParameters(self,params):
     """
-    Sets the parameters of the datacube
+    Sets the parameters of the datacube to *params*
     """
     self._parameters = params
     self.setModified()
@@ -100,7 +116,7 @@ class Datacube(Subject,Observer,Reloadable):
     
   def setFilename(self,filename):
     """
-    Sets the filename of the datacube
+    Sets the filename of the datacube to *filename*.
     """
     self._meta["filename"] = os.path.realpath(filename)
     self.setModified()
@@ -108,13 +124,13 @@ class Datacube(Subject,Observer,Reloadable):
     
   def filename(self):
     """
-    Returns the filename of the datacube
+    Returns the filename of the datacube.
     """
     return self._meta["filename"]
       
   def tags(self):
     """
-    Returns the tags of the datacube
+    Returns the tags of the datacube.
     """
     return self._meta["tags"]
     
@@ -218,13 +234,10 @@ class Datacube(Subject,Observer,Reloadable):
       self._meta["fieldMap"][self._meta["fieldNames"][i]] = i
                 
   def clear(self):
-  
-  
-  
     """
     Resets the datacube to its initial state
     """
-    self.initDatacube()
+    self.initialize()
     
   def table(self):
     """
@@ -249,11 +262,12 @@ class Datacube(Subject,Observer,Reloadable):
     """
     Searches for a given combination of values in the datacube, starting from index "start".
     Example: datacube.search(a = 4, b = -3,c = 2,start = 0) will return the index of the first row where a == 4, b == -3, c == 2,
-    starting at index 0. If no row matches the given criteria, search will return None.
+    starting at index 0. If no row matches the given criteria, search will return [].
     """
     keys = kwargs.keys()
     cols = dict()
     foundRows = []
+    dtype = self.table().dtype
     for key in keys:
       cols[key] = self.column(key)
       if cols[key] == None:
@@ -261,7 +275,7 @@ class Datacube(Subject,Observer,Reloadable):
     for i in range(0,len(cols[keys[0]])):
       found = True
       for key in keys:
-        if cols[key][i] != kwargs[key]:
+        if not allclose(array(kwargs[key],dtype=dtype), cols[key][i]):
           found = False
           break
       if found:
@@ -820,22 +834,30 @@ class Datacube(Subject,Observer,Reloadable):
     if loadChildren:
       if version == "undefined" or version == "0.1":
         for key in data["children"]:
-          for path in data["children"][key]:
-            if not os.path.isabs(path):
-              path = directory + "/" + path
-            datacube = Datacube()
-            datacube.loadtxt(path)
-            attributes = {"row" : key}
-            item = ChildItem(datacube,attributes)
+          try:
+            for path in data["children"][key]:
+              if not os.path.isabs(path):
+                path = directory + "/" + path
+              datacube = Datacube()
+              datacube.loadtxt(path)
+              attributes = {"row" : key}
+              item = ChildItem(datacube,attributes)
             self._children.append(item)
+          except:
+            self.removeChild(datacube)
+            print "cannot load 1 datacube"
       elif version == "0.2":
         for child in data['children']:
-          datacube = Datacube()
-          path = child["path"]
-          if not os.path.isabs(path):
-            path = directory + "/" + path
-          datacube.loadtxt(path)
-          self.addChild(datacube,**child["attributes"])
+          try:
+            datacube = Datacube()
+            path = child["path"]
+            if not os.path.isabs(path):
+              path = directory + "/" + path
+            datacube.loadtxt(path)
+            self.addChild(datacube,**child["attributes"])
+          except:
+            self.removeChild(datacube)
+            print "cannot load 1 datacube"
 
     tableFilename = directory+"/"+data['tablefilename']
 

@@ -125,7 +125,7 @@ class IDE(QMainWindow,ObserverWidget):
       
     def saveProjectAs(self):
       filename = QFileDialog.getSaveFileName(filter = "Project (*.prj)")
-      if filename != '' and os.path.isfile(filename):
+      if filename != '':
         self._project.saveToFile(filename)
         self.updateWindowTitle()
         return True
@@ -274,6 +274,111 @@ class IDE(QMainWindow,ObserverWidget):
         self.setWindowTitle(self._windowTitle+ " - " + self._project.filename())
       else:
         self.setWindowTitle(self._windowTitle)
+        
+    def initializeIcons(self):
+      self._icons = dict()
+      
+      iconFilenames = {
+        "newFile"             :'/actions/filenew.png',
+        "openFile"            :'/actions/fileopen.png',
+        "saveFile"            :'/actions/filesave.png',
+        "saveFileAs"          :'/actions/filesaveas.png',
+        "closeFile"           :'/actions/fileclose.png',
+        "exit"                :'/actions/exit.png',
+        "workingPath"         :'/actions/gohome.png',
+        "killThread"          :'/actions/stop.png',
+        "executeAllCode"      :'/actions/run.png',
+        "executeCodeBlock"    :'/actions/kde1.png',
+        "executeCodeSelection":'/actions/kde4.png',
+        "logo"                :'/apps/penguin.png',
+      }
+      
+      basePath = params['path']+params['directories.crystalIcons']
+      
+      for key in iconFilenames:
+        self._icons[key] = QIcon(basePath+iconFilenames[key])
+      
+    def initializeMenus(self):
+        menuBar = self.menuBar()
+        
+        fileMenu = menuBar.addMenu("File")
+        projectMenu = menuBar.addMenu("Project")
+        
+        fileNew = fileMenu.addAction(self._icons["newFile"],"&New")
+        fileNew.setShortcut(QKeySequence("CTRL+n"))
+        fileOpen = fileMenu.addAction(self._icons["openFile"],"&Open")
+        fileOpen.setShortcut(QKeySequence("CTRL+o"))
+        fileClose = fileMenu.addAction(self._icons["closeFile"],"&Close")
+        fileClose.setShortcut(QKeySequence("CTRL+F4"))
+        fileSave = fileMenu.addAction(self._icons["saveFile"],"&Save")
+        fileSave.setShortcut(QKeySequence("CTRL+s"))
+        fileSaveAs = fileMenu.addAction(self._icons["saveFileAs"],"Save &As")
+        fileSaveAs.setShortcut(QKeySequence("CTRL+F12"))
+
+        projectNew = projectMenu.addAction(self._icons["newFile"],"&New")
+        projectOpen = projectMenu.addAction(self._icons["openFile"],"&Open")
+        projectSave = projectMenu.addAction(self._icons["saveFile"],"&Save")
+        projectSaveAs = projectMenu.addAction(self._icons["saveFileAs"],"Save &As")
+
+        fileMenu.addSeparator()
+
+        fileExit = fileMenu.addAction(self._icons["exit"],"Exit")
+        fileExit.setShortcut(QKeySequence("CTRL+ALT+F4"))
+        
+        self.connect(fileNew, SIGNAL('triggered()'), self.Editor.newEditor)
+        self.connect(fileOpen, SIGNAL('triggered()'), self.Editor.openFile)
+        self.connect(fileClose, SIGNAL('triggered()'), lambda : self.Editor.closeTab(self.Editor.Tab.currentIndex()))
+        self.connect(fileSave, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFile())
+        self.connect(fileSaveAs, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFileAs())
+        self.connect(fileExit, SIGNAL('triggered()'), self.close)
+
+        self.connect(projectNew, SIGNAL('triggered()'), self.newProject)
+        self.connect(projectOpen, SIGNAL('triggered()'), self.openProject)
+        self.connect(projectSave, SIGNAL('triggered()'), self.saveProject)
+        self.connect(projectSaveAs, SIGNAL('triggered()'), self.saveProjectAs)
+        
+        fileMenu.addSeparator()  
+
+        self.editMenu = menuBar.addMenu("Edit")
+        self.viewMenu = menuBar.addMenu("View")
+
+        self.toolsMenu = menuBar.addMenu("Tools")
+        self.codeMenu = menuBar.addMenu("Code")
+        self.settingsMenu = menuBar.addMenu("Settings")
+        self.windowMenu = menuBar.addMenu("Window")
+        self.helpMenu = menuBar.addMenu("Help")
+        
+        restartCodeRunner = self.codeMenu.addAction("Restart Code Process")
+        
+        self.connect(restartCodeRunner,SIGNAL("triggered()"),self._codeRunner.restart)      
+
+    def initializeToolbars(self):
+        self.mainToolbar = self.addToolBar("Tools")
+
+        icons = self._icons
+
+        newFile = self.mainToolbar.addAction(icons["newFile"],"New")
+        openFile = self.mainToolbar.addAction(icons["openFile"],"Open")
+        saveFile = self.mainToolbar.addAction(icons["saveFile"],"Save")
+        saveFileAs = self.mainToolbar.addAction(icons["saveFileAs"],"Save As")
+
+        self.mainToolbar.addSeparator()
+                
+        executeAll = self.mainToolbar.addAction(icons["executeAllCode"],"Run")
+        executeBlock = self.mainToolbar.addAction(icons["executeCodeBlock"],"Run Block")
+        executeSelection = self.mainToolbar.addAction(icons["executeCodeSelection"],"Run Selection")
+
+        self.mainToolbar.addSeparator()
+
+        changeWorkingPath = self.mainToolbar.addAction(self._icons["workingPath"],"Change working path")
+        killThread = self.mainToolbar.addAction(self._icons["killThread"],"Kill Thread")
+        
+        self.connect(newFile, SIGNAL('triggered()'), self.Editor.newEditor)
+        self.connect(openFile, SIGNAL('triggered()'), self.Editor.openFile)
+        self.connect(saveFile, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFile())
+        self.connect(saveFileAs, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFileAs())
+        self.connect(killThread,SIGNAL("triggered()"),self.terminateCodeExecution)
+        self.connect(changeWorkingPath, SIGNAL('triggered()'), self.changeWorkingPath)
 
     def __init__(self,parent=None):
         QMainWindow.__init__(self,parent)
@@ -281,24 +386,17 @@ class IDE(QMainWindow,ObserverWidget):
         
         self._timer = QTimer(self)
         self._runningCodeSessions = []
-                               
         self._timer.setInterval(500)
-        
         self.connect(self._timer,SIGNAL("timeout()"),self.onTimer)
-        
         self._timer.start()
         
         self._windowTitle = "Python Lab IDE"
-        
         self.setWindowTitle(self._windowTitle)
         
         
-        self.setDockOptions(QMainWindow.AllowTabbedDocks	)
-
+        self.setDockOptions(QMainWindow.AllowTabbedDocks)
         self.LeftBottomDock = QDockWidget()
         self.RightBottomDock = QDockWidget()
-                
-          
         self.LeftBottomDock.setWindowTitle("Log")
         self.RightBottomDock.setWindowTitle("File Browser")
 
@@ -348,7 +446,7 @@ class IDE(QMainWindow,ObserverWidget):
         
         self.projectWindow.setLayout(layout)
         
-        self.threadPanel = ThreadPanel()
+        self.threadPanel = ThreadPanel(codeRunner = self._codeRunner)
         
         self.tabs.addTab(self.projectWindow,"Project")        
         self.tabs.addTab(self.threadPanel,"Processes")
@@ -360,94 +458,11 @@ class IDE(QMainWindow,ObserverWidget):
 
         self.setCentralWidget(verticalSplitter)
         
-        self.MyMenuBar = self.menuBar()
-                
+        self.initializeIcons()
+        self.initializeMenus()
+        self.initializeToolbars()
         
-        newIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/filenew.png')
-        openIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/fileopen.png')
-        saveIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/filesave.png')
-        saveAsIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/filesaveas.png')
-        closeIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/fileclose.png')
-        exitIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/exit.png')
-        workingPathIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/gohome.png')
-        killThreadIcon = QIcon(params['path']+params['directories.crystalIcons']+'/actions/stop.png')
-
-        FileMenu = self.MyMenuBar.addMenu("File")
-        projectMenu = self.MyMenuBar.addMenu("Project")
-        
-        fileNew = FileMenu.addAction(newIcon,"&New")
-        fileNew.setShortcut(QKeySequence("CTRL+n"))
-        fileOpen = FileMenu.addAction(openIcon,"&Open")
-        fileOpen.setShortcut(QKeySequence("CTRL+o"))
-        fileClose = FileMenu.addAction(closeIcon,"&Close")
-        fileClose.setShortcut(QKeySequence("CTRL+F4"))
-        fileSave = FileMenu.addAction(saveIcon,"&Save")
-        fileSave.setShortcut(QKeySequence("CTRL+s"))
-        fileSaveAs = FileMenu.addAction(saveAsIcon,"Save &As")
-        fileSaveAs.setShortcut(QKeySequence("CTRL+F12"))
-
-        projectNew = projectMenu.addAction(newIcon,"&New")
-        projectOpen = projectMenu.addAction(openIcon,"&Open")
-        projectSave = projectMenu.addAction(saveIcon,"&Save")
-        projectSaveAs = projectMenu.addAction(saveAsIcon,"Save &As")
-
-        FileMenu.addSeparator()
-
-        fileExit = FileMenu.addAction(exitIcon,"Exit")
-        fileExit.setShortcut(QKeySequence("CTRL+ALT+F4"))
-        
-        self.connect(fileNew, SIGNAL('triggered()'), self.Editor.newEditor)
-        self.connect(fileOpen, SIGNAL('triggered()'), self.Editor.openFile)
-        self.connect(fileClose, SIGNAL('triggered()'), lambda : self.Editor.closeTab(self.Editor.Tab.currentIndex()))
-        self.connect(fileSave, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFile())
-        self.connect(fileSaveAs, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFileAs())
-        self.connect(fileExit, SIGNAL('triggered()'), self.close)
-
-        self.connect(projectNew, SIGNAL('triggered()'), self.newProject)
-        self.connect(projectOpen, SIGNAL('triggered()'), self.openProject)
-        self.connect(projectSave, SIGNAL('triggered()'), self.saveProject)
-        self.connect(projectSaveAs, SIGNAL('triggered()'), self.saveProjectAs)
-        
-        FileMenu.addSeparator()  
-
-        self.editMenu = self.MyMenuBar.addMenu("Edit")
-        self.viewMenu = self.MyMenuBar.addMenu("View")
-
-        showLog = self.viewMenu.addAction("Show Log")
-        self.connect(showLog,SIGNAL("triggered()"),lambda :self.logTabs.show())
-
-        self.toolsMenu = self.MyMenuBar.addMenu("Tools")
-        self.settingsMenu = self.MyMenuBar.addMenu("Settings")
-        self.windowMenu = self.MyMenuBar.addMenu("Window")
-        self.helpMenu = self.MyMenuBar.addMenu("Help")
-        self.MyToolbar = self.addToolBar("Tools")
-        
-        newFile = self.MyToolbar.addAction(newIcon,"New")
-        openFile = self.MyToolbar.addAction(openIcon,"Open")
-        saveFile = self.MyToolbar.addAction(saveIcon,"Save")
-        saveFileAs = self.MyToolbar.addAction(saveAsIcon,"Save As")
-
-        self.MyToolbar.addSeparator()
-                
-        executeAll = self.MyToolbar.addAction(QIcon(params['path']+params['directories.crystalIcons']+'/actions/run.png'),"Run")
-        executeBlock = self.MyToolbar.addAction(QIcon(params['path']+params['directories.crystalIcons']+'/actions/kde1.png'),"Run Block")
-        executeSelection = self.MyToolbar.addAction(QIcon(params['path']+params['directories.crystalIcons']+'/actions/kde4.png'),"Run Selection")
-
-        self.MyToolbar.addSeparator()
-
-        changeWorkingPath = self.MyToolbar.addAction(workingPathIcon,"Change working path")
-        killThread = self.MyToolbar.addAction(killThreadIcon,"Kill Thread")
-        
-        self.connect(killThread,SIGNAL("triggered()"),self.terminateCodeExecution)
-
-        self.connect(changeWorkingPath, SIGNAL('triggered()'), self.changeWorkingPath)
-
-        self.connect(newFile, SIGNAL('triggered()'), self.Editor.newEditor)
-        self.connect(openFile, SIGNAL('triggered()'), self.Editor.openFile)
-        self.connect(saveFile, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFile())
-        self.connect(saveFileAs, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFileAs())
-        
-        self.setWindowIcon(QIcon(params['path']+params['directories.crystalIcons']+'/apps/penguin.png'))
+        self.setWindowIcon(self._icons["logo"])
         
         #We add a timer
         self.queuedText = ""

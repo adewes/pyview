@@ -17,38 +17,40 @@ class ThreadPanel(QWidget,ObserverWidget):
     pass
   
   def updateThreadList(self):
-    threads = threading.enumerate()
-    if threads == self._threads:
+    threadDict = self._codeRunner.status()
+    if threadDict == self._threadDict:
       return
-    self._threads = threads
-    self.threadlist.clear()
-    for thread in threads:
+    self._threadDict = threadDict
+    self._threadView.clear()
+    self._identifiers = {}
+    for identifier in threadDict:
+      if threadDict[identifier]["isRunning"] == False and threadDict[identifier]["failed"] == False:
+        continue
       item = QTreeWidgetItem()
-      item.setText(0,str(thread.name))
-      item.setText(1,str(thread.ident))
-      self.threadlist.insertTopLevelItem(self.threadlist.topLevelItemCount(),item)
+      item.setText(2,str(identifier))
+      item.setText(0,str(threadDict[identifier]["filename"]))
+      item.setText(1,"running" if threadDict[identifier]["isRunning"] else "failed" if threadDict[identifier]["failed"] else "finished")
+      self._identifiers[self._threadView.topLevelItemCount()] = identifier
+      self._threadView.insertTopLevelItem(self._threadView.topLevelItemCount(),item)
 
   def killThread(self):
-    selectedThreads = self.threadlist.selectedItems()
-    threads = threading.enumerate()
-    for selectedThread in selectedThreads:
-      name = str(selectedThread.text(0))
-      for thread in threads:
-        if thread.name == name and hasattr(thread,"terminate"):
-          print "Terminating thread..."
-          thread.terminate()
+    selectedItems = self._threadView.selectedItems()
+    for selectedItem in selectedItems:
+      identifier = self._identifiers[self._threadView.indexOfTopLevelItem(selectedItem)]
+      self._codeRunner.stopExecution(identifier)
     
-  def __init__(self,parent = None):
+  def __init__(self,codeRunner = None,parent = None):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     self.setMinimumHeight(200)
-    self.setWindowTitle("Threads")
+    self.setWindowTitle("Thread Status")
     layout = QGridLayout()
-    self._threads = []
-    
-    self.threadlist = QTreeWidget()
-    self.threadlist.setSelectionMode(QAbstractItemView.ExtendedSelection)
-    self.threadlist.setHeaderLabels(["Name","Status"])
+    self._codeRunner = codeRunner
+    self._threadDict = {}
+    self._identifiers = {}
+    self._threadView = QTreeWidget()
+    self._threadView.setSelectionMode(QAbstractItemView.ExtendedSelection)
+    self._threadView.setHeaderLabels(["filename","status","identifier"])
         
     setupLayout = QBoxLayout(QBoxLayout.LeftToRight)
     
@@ -59,7 +61,7 @@ class ThreadPanel(QWidget,ObserverWidget):
     buttonsLayout.addWidget(killButton)
     buttonsLayout.addStretch()
 
-    layout.addWidget(self.threadlist)
+    layout.addWidget(self._threadView)
     layout.addItem(buttonsLayout)
 
     self.updateThreadList()

@@ -3,12 +3,13 @@ import time
 import traceback
 from pyview.lib.patterns import KillableThread,Reloadable,StopThread,Subject
 from threading import RLock
+import traceback
 import __builtin__,os.path
 
 _importFunction = __builtin__.__import__
 _moduleDates = dict()
 
-def _autoReloadImport(name,*a):
+def _autoReloadImport(name,*a,**ka):
   global _importFunction
   global _moduleDates
   if name in sys.modules:
@@ -23,7 +24,7 @@ def _autoReloadImport(name,*a):
           if mtime > _moduleDates[filename]:
             reload(m)
         _moduleDates[filename] = mtime
-  return _importFunction(name,*a)
+  return _importFunction(name,*a,**ka)
 
 def enableModuleAutoReload():
   __builtin__.__import__ = _autoReloadImport
@@ -33,21 +34,36 @@ def disableModuleAutoReload():
   
 class CodeThread (KillableThread):
 
-  def __init__(self,code,gv = dict(),lv = dict(),callback = None,source = "<my string>"):
+  def __init__(self,code,gv = dict(),lv = dict(),callback = None,filename = "<my string>"):
     KillableThread.__init__(self)
     self._gv = gv
     self._lv = lv
-    self._source = source
+    self._filename = filename
     self._failed = False
     self._callback = callback
-    self.code = code
+    self._code = code
     self._stop = False
+    self._restart = True
+    self._isBusy = False
+    
+  def code(self):
+    return self._code
+    
+  def filename(self):
+    return self._filename
     
   def isRunning(self):
-    return self.isAlive()
+    return self._isBusy and self.isAlive()
     
   def failed(self):
     return self._failed
+    
+  def executeCode(self,code,filename = "<my string>"):
+    if self.isRunning():
+      raise Exception("Thread is already executing code!")
+    self._code = code
+    self._filename = filename
+    self._restart = True
     
   def exceptionInfo(self):
     if self.failed() == False:
@@ -63,21 +79,29 @@ class CodeThread (KillableThread):
     self._stop = True
     
   def run(self):
-    try:
-      code = compile(self.code,self._source,'exec')
-      exec(code,self._gv,self._lv)
-    except StopThread:
-      pass
-    except:
-      self._failed = True
-      exc_type, exc_value, exc_traceback = sys.exc_info()
-      self._exception_type = exc_type
-      self._exception_value = exc_value
-      self._traceback = exc_traceback
-      raise
-    finally:
-      if not self._callback == None:
-        self._callback(self)
+    while not self._stop:
+      if self._restart:
+        try:
+          self._isBusy = True
+          self._failed = False
+          code = compile(self._code,self._filename,'exec')
+          exec(code,self._gv,self._lv)
+        except StopThread:
+          break
+        except:
+          self._failed = True
+          exc_type, exc_value, exc_traceback = sys.exc_info()
+          self._exception_type = exc_type
+          self._exception_value = exc_value
+          self._traceback = exc_traceback
+          raise
+        finally:
+          self._restart = False
+          self._isBusy = False
+          if not self._callback == None:
+            self._callback(self)
+      else:
+        time.sleep(0.5)
   
 
 class CodeRunner(Reloadable,Subject):
@@ -157,9 +181,18 @@ class CodeRunner(Reloadable,Subject):
       return
     self._threads[identifier].terminate()
     
+  def status(self):
+    status = dict()
+    for identifier in self._threads:
+      status[identifier] = dict()
+      status[identifier]["isRunning"] = self.isExecutingCode(identifier)
+      status[identifier]["filename"] = self._threads[identifier].filename()
+      status[identifier]["failed"] = self._threads[identifier].failed()
+    return status
+    
   def executeCode(self,code,identifier,filename = None, lv = None,gv = None):
     if self.isExecutingCode(identifier):
-      return -1
+      raise Exception("Code thread %s is busy!" % identifier)
     if lv == None:
       if not identifier in self._lv:
         self._lv[identifier] = dict()
@@ -167,21 +200,29 @@ class CodeRunner(Reloadable,Subject):
     if gv == None:
       gv = self._gv
     
-    class GlobalVariables:
-      
-      def __init__(self,gv):
-        self.__dict__ = gv
+    if identifier in self._threads and self._threads[identifier].isAlive():
+      #if a thread with that identifier exists and is running we tell it to execute our code...
+      ct = self._threads[identifier]
+      ct.executeCode(code,filename)    
+    else:
+      #...otherwise we create a new thread
+      class GlobalVariables:
         
-    gvClass = GlobalVariables(gv)
-    
-    lv["gv"] = gvClass
-    
-    ct = CodeThread(code,source = filename,lv = lv,gv = lv,callback = self.threadCallback)
-    ct._id = self._threadID
-    self._threadID+=1
-    self._threads[identifier] = ct
-    ct.setDaemon(True)
-    ct.start()
+        def __init__(self,gv):
+          self.__dict__ = gv
+          
+      gvClass = GlobalVariables(gv)
+      
+      lv["gv"] = gvClass
+      lv["__file__"] = filename
+      
+      ct = CodeThread(code,filename = filename,lv = lv,gv = lv,callback = self.threadCallback)
+      ct._id = self._threadID
+      self._threadID+=1
+      self._threads[identifier] = ct
+      ct.setDaemon(True)
+      ct.start()
+
     return ct._id
     
 from multiprocessing import *
@@ -193,9 +234,18 @@ import threading
 class CodeProcess(Process):
 
   class StreamProxy(object):
-  
+
+    def __getattr__(self,attr):
+      if hasattr(self._queue,attr):
+        return getattr(self._queue,attr)
+      else:
+        raise KeyError("No such attribute: %s" %attr)
+    
     def __init__(self,queue):
       self._queue = queue
+      
+    def flush(self):
+      pass
       
     def write(self,output):
       self._queue.put(output)
@@ -246,7 +296,7 @@ class CodeProcess(Process):
               r = f(*args,**kwargs)
               self.responseQueue().put(r,False)
             except Exception as e:
-              self.responseQueue().put(e,False)
+              traceback.print_exc()
       except KeyboardInterrupt:
         print "Interrupt, exiting..."
       
@@ -272,7 +322,7 @@ class MultiProcessCodeRunner():
       self.restart()
     self._codeProcess.commandQueue().put(message,False)
     try:
-      response = self._codeProcess.responseQueue().get(timeout = self.timeout())
+      response = self._codeProcess.responseQueue().get(True,timeout = self.timeout())
     except:
       response = None
     return response
@@ -283,20 +333,23 @@ class MultiProcessCodeRunner():
   def hasStdout(self):
     return not self._codeProcess.stdoutQueue().empty()
 
-  def stdout(self):
+  def _readFromQueueWithTimeout(self,queue,timeout):
     string = ""
-    while not self._codeProcess.stdoutQueue().empty():
-      string+=self._codeProcess.stdoutQueue().get(False)
+    start = time.clock()
+    while not queue.empty():
+      string+=queue.get(False)
+      if time.clock()-start > timeout:
+        break
     return string
+  
+  def stdout(self,timeout = 0.5):
+    return self._readFromQueueWithTimeout(self._codeProcess.stdoutQueue(),timeout)
 
   def hasStderr(self):
     return not self._codeProcess.stderrQueue().empty()
 
-  def stderr(self):
-    string = ""
-    while not self._codeProcess.stderrQueue().empty():
-      string+=self._codeProcess.stderrQueue().get(False)
-    return string
+  def stderr(self,timeout = 0.5):
+    return self._readFromQueueWithTimeout(self._codeProcess.stderrQueue(),timeout)
     
   def codeProcess(self):
     return self._codeProcess

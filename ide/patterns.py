@@ -19,21 +19,11 @@ class ObserverWidget(Observer):
   #We intercept the "update" call from the subject and queue it.
   def updated(self,subject = None,property = None,value = None):
     self.updatedThread(subject,property,value)
-    self.updateQueue.append([subject,property,value])
+    self.emit(SIGNAL("processUpdate(PyQt_PyObject)"),[subject,property,value])
     
-  #This function periodically processes the update queue.
-  def processUpdateQueue(self):
-    while len(self.updateQueue) > 0:
-      event = self.updateQueue.pop(0)
-      self.updatedGui(*event) 
-
-  def clearUpdateQueue(self):
-    self.updateQueue = []
+  def processUpdate(self,args):
+    self.updatedGui(*args)
     
-  def __init__(self,checkInterval = 1000):
-    self.updateQueue =  []
-    self.updateQueueTimer = QTimer(self)
-    self.updateQueueTimer.setInterval(checkInterval)
-    self.connect(self.updateQueueTimer,SIGNAL("timeout()"),self.processUpdateQueue)
-    self.updateQueueTimer.start()
+  def __init__(self):
+    self.connect(self,SIGNAL("processUpdate(PyQt_PyObject)"),self.processUpdate,Qt.QueuedConnection)  
 
