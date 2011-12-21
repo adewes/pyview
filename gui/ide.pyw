@@ -124,9 +124,10 @@ class IDE(QMainWindow,ObserverWidget):
       return self.FileBrowser.directory()
       
     def saveProjectAs(self):
-      filename = QFileDialog.getSaveFileName(filter = "Project (*.prj)")
+      filename = QFileDialog.getSaveFileName(filter = "Project (*.prj)",directory = self.workingDirectory())
       if filename != '':
         self._project.saveToFile(filename)
+        self.setWorkingDirectory(filename)
         self.updateWindowTitle()
         return True
       else:
@@ -139,7 +140,19 @@ class IDE(QMainWindow,ObserverWidget):
         return True
       else:
         return self.saveProjectAs()
-    
+
+    def workingDirectory(self):
+      if self._workingDirectory == None: 
+        return os.getcwd()
+      return self._workingDirectory
+      
+    def setWorkingDirectory(self,filename):
+      if filename != None:
+        directory = os.path.dirname(str(filename))
+        self._workingDirectory = directory
+      else:
+        self._workingDirectory = None
+
     def newProject(self):
       if self._project.hasUnsavedChanges():
         MyMessageBox = QMessageBox()
@@ -155,20 +168,24 @@ class IDE(QMainWindow,ObserverWidget):
       return True
       
     def openProject(self,filename = None):
-      if self.newProject() == False:
-        return False
       if filename == None:
-        filename = QFileDialog.getOpenFileName(filter = "Project (*.prj)")
+        filename = QFileDialog.getOpenFileName(filter = "Project (*.prj)",directory = self.workingDirectory())
       if os.path.isfile(filename):
+          if self.newProject() == False:
+            return False
           project = Project()
           project.loadFromFile(filename)
+          self.setWorkingDirectory(filename)
           self.setProject(project)
           return True
-      else:
-        raise IOError("Invalid path: %s" % filename)
       return False
 
     def closeEvent(self,e):
+      self.editorWindow.closeEvent(e)
+      
+      if not e.isAccepted():
+        return
+      
       if self._project.hasUnsavedChanges():
         MyMessageBox = QMessageBox()
         MyMessageBox.setWindowTitle("Warning!")
@@ -185,44 +202,48 @@ class IDE(QMainWindow,ObserverWidget):
           if self.saveProject() == False:
             e.ignore()
             return
-
       settings = QSettings()
       if self._project.filename() != None:
         settings.setValue("ide.lastproject",self._project.filename())      
       else:
         settings.remove("ide.lastproject")
       settings.sync()
-        
-      self.Editor.closeEvent(e)
-      self.projectTree.saveToSettings()
       self._codeRunner.terminate()
       
       ##We're saving our project...
-      
         
     def executeCode(self,code,identifier = "main",filename = "none",editor = None):
       if self._codeRunner.executeCode(code,identifier,filename) != -1:
         self._runningCodeSessions.append((code,identifier,filename,editor))
-        if editor != None:
-          editor.updateTab(running = True)
-            
+                    
     def eventFilter(self,object,event):
       if event.type() == QEvent.KeyPress:
         if event.key() == Qt.Key_Enter and type(object) == CodeEditor:
-          self.executeCode(object.getCurrentCodeBlock(),filename = object.filename() or "[undefined filename]",editor = object,identifier = id(object))
+          self.executeCode(object.getCurrentCodeBlock(),filename = object.filename() or "[unnamed buffer]",editor = object,identifier = id(object))
           return True
       return False
+    
+    def restartCodeProcess(self):
+      self._codeRunner.restart()
+
+      settings = QSettings()
+
+      if settings.contains('ide.workingpath'):
+        self.changeWorkingPath(str(settings.value('ide.workingpath').toString()))
 
     def changeWorkingPath(self,path = None):
 
       settings = QSettings()
 
       if path == None:
-        path = QFileDialog.getExistingDirectory(self,"Change Working Path")
+        path = QFileDialog.getExistingDirectory(self,"Change Working Path",directory = self.codeRunner().currentWorkingDirectory())
+
       if not os.path.exists(path):
         return
+        
+      os.chdir(str(path))
+      self.codeRunner().setCurrentWorkingDirectory(str(path))
 
-      self.codeRunner().executeCode("import os;os.chdir(unicode('%s'))" % path,"changeWorkingPath","")
       settings.setValue("ide.workingpath",path)
       self.workingPathLabel.setText("Working path:"+path)
                       
@@ -236,7 +257,7 @@ class IDE(QMainWindow,ObserverWidget):
       return self._codeRunner
       
     def terminateCodeExecution(self):
-      currentEditor = self.Editor.currentEditor()
+      currentEditor = self.editorWindow.currentEditor()
       for session in self._runningCodeSessions:
         (code,identifier,filename,editor) = session
         if editor == currentEditor:
@@ -244,25 +265,11 @@ class IDE(QMainWindow,ObserverWidget):
           self._codeRunner.stopExecution(identifier)
           
     def onTimer(self):
-      for session in self._runningCodeSessions:
-        (code,identifier,filename,editor) = session
-        if self._codeRunner.isExecutingCode(identifier):
-          if editor != None:
-            editor.updateTab(running = True)
-          pass
-        else:
-          if self._codeRunner.hasFailed(identifier):
-            if editor != None:
-              editor.updateTab(failed = True,running = False)
-          else:
-            if editor != None:
-              editor.updateTab(running = False,failed = False)
-          del self._runningCodeSessions[self._runningCodeSessions.index(session)]
       sys.stdout.write(self._codeRunner.stdout())
       sys.stderr.write(self._codeRunner.stderr())
-      
-    def openFile(self,filename):
-      self.Editor.openFile(filename)
+              
+    def newEditorCallback(self,editor):
+      editor.installEventFilter(self)
       
     def setProject(self,project):
       self._project = project
@@ -325,11 +332,11 @@ class IDE(QMainWindow,ObserverWidget):
         fileExit = fileMenu.addAction(self._icons["exit"],"Exit")
         fileExit.setShortcut(QKeySequence("CTRL+ALT+F4"))
         
-        self.connect(fileNew, SIGNAL('triggered()'), self.Editor.newEditor)
-        self.connect(fileOpen, SIGNAL('triggered()'), self.Editor.openFile)
-        self.connect(fileClose, SIGNAL('triggered()'), lambda : self.Editor.closeTab(self.Editor.Tab.currentIndex()))
-        self.connect(fileSave, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFile())
-        self.connect(fileSaveAs, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFileAs())
+        self.connect(fileNew, SIGNAL('triggered()'), self.editorWindow.newEditor)
+        self.connect(fileOpen, SIGNAL('triggered()'), self.editorWindow.openFile)
+        self.connect(fileClose, SIGNAL('triggered()'), self.editorWindow.closeCurrentFile)
+        self.connect(fileSave, SIGNAL('triggered()'), self.editorWindow.saveCurrentFile)
+        self.connect(fileSaveAs, SIGNAL('triggered()'), self.editorWindow.saveCurrentFileAs)
         self.connect(fileExit, SIGNAL('triggered()'), self.close)
 
         self.connect(projectNew, SIGNAL('triggered()'), self.newProject)
@@ -350,7 +357,7 @@ class IDE(QMainWindow,ObserverWidget):
         
         restartCodeRunner = self.codeMenu.addAction("Restart Code Process")
         
-        self.connect(restartCodeRunner,SIGNAL("triggered()"),self._codeRunner.restart)      
+        self.connect(restartCodeRunner,SIGNAL("triggered()"),self.restartCodeProcess)      
 
     def initializeToolbars(self):
         self.mainToolbar = self.addToolBar("Tools")
@@ -373,10 +380,10 @@ class IDE(QMainWindow,ObserverWidget):
         changeWorkingPath = self.mainToolbar.addAction(self._icons["workingPath"],"Change working path")
         killThread = self.mainToolbar.addAction(self._icons["killThread"],"Kill Thread")
         
-        self.connect(newFile, SIGNAL('triggered()'), self.Editor.newEditor)
-        self.connect(openFile, SIGNAL('triggered()'), self.Editor.openFile)
-        self.connect(saveFile, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFile())
-        self.connect(saveFileAs, SIGNAL('triggered()'), lambda : self.Editor.Tab.currentWidget().saveFileAs())
+        self.connect(newFile, SIGNAL('triggered()'), self.editorWindow.newEditor)
+        self.connect(openFile, SIGNAL('triggered()'), self.editorWindow.openFile)
+        self.connect(saveFile, SIGNAL('triggered()'), self.editorWindow.saveCurrentFile)
+        self.connect(saveFileAs, SIGNAL('triggered()'), self.editorWindow.saveCurrentFileAs)
         self.connect(killThread,SIGNAL("triggered()"),self.terminateCodeExecution)
         self.connect(changeWorkingPath, SIGNAL('triggered()'), self.changeWorkingPath)
 
@@ -391,8 +398,8 @@ class IDE(QMainWindow,ObserverWidget):
         self._timer.start()
         
         self._windowTitle = "Python Lab IDE"
+        self._workingDirectory = None
         self.setWindowTitle(self._windowTitle)
-        
         
         self.setDockOptions(QMainWindow.AllowTabbedDocks)
         self.LeftBottomDock = QDockWidget()
@@ -409,8 +416,8 @@ class IDE(QMainWindow,ObserverWidget):
 
         self._codeRunner = MultiProcessCodeRunner(gv = gv,lv = gv)
 
-        self.Editor = CodeEditorWindow(self,ide = self)
-        self.errorConsole = ErrorConsole(codeEditorWindow = self.Editor,codeRunner = self._codeRunner)
+        self.editorWindow = CodeEditorWindow(self,newEditorCallback = self.newEditorCallback)
+        self.errorConsole = ErrorConsole(codeEditorWindow = self.editorWindow,codeRunner = self._codeRunner)
         
         self.tabs = QTabWidget()
         self.logTabs = QTabWidget()
@@ -420,7 +427,7 @@ class IDE(QMainWindow,ObserverWidget):
         
         self.tabs.setMaximumWidth(350)
         horizontalSplitter.addWidget(self.tabs)
-        horizontalSplitter.addWidget(self.Editor)
+        horizontalSplitter.addWidget(self.editorWindow)
         verticalSplitter.addWidget(horizontalSplitter)
         verticalSplitter.addWidget(self.logTabs)
         verticalSplitter.setStretchFactor(0,2)        
@@ -446,11 +453,11 @@ class IDE(QMainWindow,ObserverWidget):
         
         self.projectWindow.setLayout(layout)
         
-        self.threadPanel = ThreadPanel(codeRunner = self._codeRunner)
+        self.threadPanel = ThreadPanel(codeRunner = self._codeRunner,editorWindow = self.editorWindow)
         
         self.tabs.addTab(self.projectWindow,"Project")        
         self.tabs.addTab(self.threadPanel,"Processes")
-        self.connect(self.projectTree,SIGNAL("openFile(PyQt_PyObject)"),self.openFile)
+        self.connect(self.projectTree,SIGNAL("openFile(PyQt_PyObject)"),lambda filename: self.editorWindow.openFile(filename))
 
         StatusBar = self.statusBar()
         self.workingPathLabel = QLabel("Working path: ?")

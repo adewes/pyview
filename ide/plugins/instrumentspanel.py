@@ -118,8 +118,9 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     for instrument in selected:
       name = str(instrument.text(0))
       if name in self.dashboards:
-        self._instrumentsArea.removeFrontPanel(self.dashboards[name])
-#        del self.dashboards[name]
+        self.dashboards[name].hide()
+        #self._instrumentsArea.removeFrontPanel(self.dashboards[name])
+        del self.dashboards[name]
       panel = self.manager.frontPanel(name)
 #      self._instrumentsArea.addFrontPanel(panel)
 #      self._instrumentsArea.show()

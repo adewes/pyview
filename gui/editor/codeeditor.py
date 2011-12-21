@@ -4,6 +4,7 @@ from PyQt4.QtCore import *
 from syntaxhighlighter import *
 from pyview.config.parameters import *
 
+import os
 import traceback
 import math
 import sys
@@ -100,51 +101,104 @@ class EditorTabBar(QTabBar):
           
 class CodeEditorWindow(QWidget):
 
+    def workingDirectory(self):
+      if self._workingDirectory == None: 
+        return os.getcwd()
+      return self._workingDirectory
+      
+    def setWorkingDirectory(self,filename):
+      if filename != None:
+        directory = os.path.dirname(str(filename))
+        self._workingDirectory = directory
+      else:
+        self._workingDirectory = None
+
     def checkForOpenFile(self,filename):
       if filename == None:
         return None
-      path = os.path.normpath(filename)
+      path = os.path.normpath(str(filename))
       for i in range(0,self.Tab.count()):
         if self.Tab.widget(i).filename() == path:
           self.Tab.setCurrentWidget(self.Tab.widget(i))
           return self.Tab.widget(i)
       return None
-            
-    def openFile(self,filename = None):
-      if self.checkForOpenFile(filename) != None:
-        return self.checkForOpenFile(filename) 
-      MyEditor = CodeEditor()
-      if MyEditor.openFile(filename) == True:
-        self.newEditor(MyEditor)
-        MyEditor.updateTab()
-        self.saveTabState()
-        return MyEditor
-      else:
-        del MyEditor
-      return None
-            
-    def newEditor(self,Editor = None):
-        MyEditor = None
-        if Editor != None:
-          MyEditor = Editor
-        else:
-          MyEditor = CodeEditor()
-          MyEditor.append("")
-        MyEditor.setTabWidget(self.Tab)
-        MyEditor.activateHighlighter()
-        self.editors.append(MyEditor)
-        self.Tab.addTab(MyEditor,"untitled %i" % self.count)
-        self.Tab.setTabToolTip(self.Tab.indexOf(MyEditor),"untitled %i" % self.count)
-        self.count = self.count + 1
-        self.Tab.setCurrentWidget(MyEditor)
-        MyEditor.setWindowManager(self)
-        if self._ide != None:
-          MyEditor.installEventFilter(self._ide)
-        return MyEditor
 
-    def addEditor(self):
-        self.newEditor()
-        
+    def saveCurrentFile(self):
+      currentEditor = self.currentEditor()
+      if currentEditor.filename() == None:
+        return self.saveCurrentFileAs()
+      else:
+        return currentEditor.save()
+
+    def saveCurrentFileAs(self):
+      currentEditor = self.currentEditor()
+      filename = str(QFileDialog.getSaveFileName(filter = "Python(*.py *.pyw)",directory = self.workingDirectory()))
+      if filename != "":
+        print "Saving document as %s" % filename
+        self.setWorkingDirectory(filename)
+        currentEditor.setFilename(filename)
+        return self.saveCurrentFile()
+      return False
+    
+    def getEditorForFile(self,filename):
+      for i in range(0,self.Tab.count()):
+        editor = self.Tab.widget(i)
+        if editor.filename() == filename:
+          return editor
+      return None 
+      
+    def updateTabText(self,editor):
+      index = self.Tab.indexOf(editor)
+      extraText = editor.tabText()
+      if editor.hasUnsavedModifications():
+        changedText = "*"
+      else:
+        changedText = ""
+      if editor.filename() != None:
+        (dir,file) = os.path.split(editor.filename())
+        self.Tab.setTabText(index,file+extraText+changedText)
+        self.Tab.setTabToolTip(index,str(editor.filename()))
+      else:
+        self.Tab.setTabText(index,"[unnamed]"+extraText+changedText)
+        self.Tab.setTabToolTip(index,"[unnamed]")
+      
+    def openFile(self,filename = None):
+          
+      if filename == None:
+        filename = str(QFileDialog.getOpenFileName(filter = "Python(*.py *.pyw)",directory = self.workingDirectory()))
+
+      if filename == "":
+        return None
+
+      if self.checkForOpenFile(filename) != None:
+        return self.checkForOpenFile(filename)
+      
+      if os.path.isfile(str(filename)):
+        self.setWorkingDirectory(filename)
+        editor = self.newEditor()
+        editor.openFile(filename)
+        self.saveTabState()
+        return editor
+      return None
+  
+    def editorHasUnsavedModifications(self,editor,changed):
+      self.updateTabText(editor)
+            
+    def newEditor(self,editor = None):
+      if editor == None:
+        editor = CodeEditor()
+        editor.append("")
+        editor.activateHighlighter()
+      self.editors.append(editor)
+      self.Tab.addTab(editor,"untitled %i" % self.count)
+      self.Tab.setTabToolTip(self.Tab.indexOf(editor),"untitled %i" % self.count)
+      self.connect(editor,SIGNAL("hasUnsavedModifications(bool)"),lambda changed,editor = editor: self.editorHasUnsavedModifications(editor,changed))
+      self.count = self.count + 1
+      self.Tab.setCurrentWidget(editor)
+      if self._newEditorCallback != None:
+        self._newEditorCallback(editor)
+      return editor
+
     def saveTabState(self):
       openFiles = list()
       for i in range(0,self.Tab.count()):
@@ -153,32 +207,114 @@ class CodeEditorWindow(QWidget):
           openFiles.append(QString(widget.filename()))
       settings = QSettings()
       settings.setValue('Editor/OpenFiles',openFiles)
+      
+    def restoreTabState(self):
+      settings = QSettings()
+      if settings.contains("Editor/OpenFiles"):
+        openFiles = settings.value("Editor/OpenFiles").toList()
+        if openFiles != None:
+          for file in openFiles:
+            self.openFile(file.toString())  
+      else:
+        self.newEditor()
         
-    def closeEvent(self,e):
-      self.saveTabState()
-      for i in range(0,self.Tab.count()):
-        widget = self.Tab.widget(i)
-        widget.closeEvent(e)
-        
-    def closeTab(self,index):
-      window = self.Tab.widget(index)
-      if window.close():
-        window.destroy()
-        self.Tab.removeTab(index)
+    def closeEditor(self,editor,askOnly = False):
+      if editor.hasUnsavedModifications():
+        self.Tab.setCurrentWidget(editor)
+        messageBox = QMessageBox()
+        messageBox.setWindowTitle("Warning!")
+        if editor.filename() != None:
+          messageBox.setText("Save changes made to file \"%s\"?" % editor.filename())
+        else:
+          messageBox.setText("Save changes made to this unsaved buffer?")
+        yes = messageBox.addButton("Yes",QMessageBox.YesRole)
+        no = messageBox.addButton("No",QMessageBox.NoRole)
+        cancel = messageBox.addButton("Cancel",QMessageBox.RejectRole)
+        messageBox.exec_()
+        choice = messageBox.clickedButton()
+        if choice == yes:
+          if self.saveCurrentFile() == False:
+            return False
+        elif choice == cancel:
+          return False
+      if askOnly:
+        return True
+      if editor.close():
+        editor.destroy()
+        self.Tab.removeTab(self.Tab.indexOf(editor))
         if self.Tab.count() == 0:
           self.newEditor()
         self.saveTabState()
+        return True
+
+      return False
+              
+    def closeEvent(self,e):
+      for i in range(0,self.Tab.count()):
+        if self.closeTab(i,askOnly = True) == False:
+          e.ignore()
+          return
+      self.saveTabState()
+      
+    def closeCurrentFile(self):
+      index = self.Tab.indexOf(self.currentEditor())
+      return self.closeTab(index)
+        
+    def closeTab(self,index,askOnly = False):
+      editor = self.Tab.widget(index)
+      return self.closeEditor(editor,askOnly)
         
     def currentEditor(self):
       return self.Tab.currentWidget()
-                
-    def __init__(self,parent=None,gv = dict(),lv = dict(),ide = None):
+
+    def askToReloadChangedFile(self,editor):
+        if editor.fileReloadPolicy() == CodeEditor.FileReloadPolicy.Always:
+          editor.reloadFile()
+          return
+        elif editor.fileReloadPolicy() == CodeEditor.FileReloadPolicy.Never:
+          return
+        MyMessageBox = QMessageBox()
+        MyMessageBox.setWindowTitle("Warning!")
+        MyMessageBox.setText("File contents of \"%s\" have changed. Reload?" % editor.filename())
+        yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
+        no = MyMessageBox.addButton("No",QMessageBox.NoRole)
+        never = MyMessageBox.addButton("Never",QMessageBox.RejectRole)
+        always = MyMessageBox.addButton("Always",QMessageBox.AcceptRole)
+        MyMessageBox.exec_()
+        choice = MyMessageBox.clickedButton()
+        if choice == yes:
+          editor.reloadFile()
+        elif choice == no:
+          editor.updateFileModificationDate()
+        elif choice == never:
+          editor.updateFileModificationDate()
+          editor.setFileReloadPolicy(CodeEditor.FileReloadPolicy.Never)
+        elif choice == always:
+          editor.reloadFile()  
+          editor.setFileReloadPolicy(CodeEditor.FileReloadPolicy.Always)
+    
+    def onTimer(self):
+      for i in range(0,self.Tab.count()):
+        editor = self.Tab.widget(i)
+        if editor.fileHasChangedOnDisk():
+          currentEditor = self.Tab.currentWidget()
+          try:
+            self.Tab.setCurrentWidget(editor)
+            self.askToReloadChangedFile(editor)
+          finally:
+            self.Tab.setCurrentWidget(currentEditor)
+                      
+    def __init__(self,parent=None,gv = dict(),lv = dict(),newEditorCallback = None):
         self.editors = []
         self.count = 1
-        self._gv = gv
-        self._lv = lv
-        self._ide = ide
+        self._workingDirectory = None
+        self._newEditorCallback = newEditorCallback
         QWidget.__init__(self,parent)
+        
+        timer = QTimer(self)
+        timer.setInterval(1000)
+        self.connect(timer,SIGNAL("timeout()"),self.onTimer)
+        timer.start()
 
         MyLayout = QGridLayout()
         
@@ -190,17 +326,10 @@ class CodeEditorWindow(QWidget):
         
         self.Tab.setTabsClosable(True)
         self.connect(self.Tab,SIGNAL("tabCloseRequested(int)"),self.closeTab)
-        settings = QSettings()
-        if settings.contains("Editor/OpenFiles"):
-          openFiles = settings.value("Editor/OpenFiles").toList()
-          if openFiles != None:
-            for file in openFiles:
-              editor = self.newEditor()
-              editor.openFile(file.toString())  
-          else:
-            self.newEditor()
         MyLayout.addWidget(self.Tab,0,0)
         self.setLayout(MyLayout)
+        
+        self.restoreTabState()
 
 
 class LineNumbers(QPlainTextEdit):
@@ -621,30 +750,46 @@ class SearchableEditor(QPlainTextEdit):
     
 class CodeEditor(SearchableEditor,LineTextWidget):
 
+    class FileReloadPolicy:
+      Always = 0
+      Never = 1
+      Ask = 2
+
+    def tabText(self):
+      return self._tabText
+      
+    def setTabText(self,text):
+      self._tabText = text
+
+    def reloadFile(self):
+      if self.filename() == None or not (os.path.exists(self.filename()) and os.path.isfile(self.filename())):
+        raise Exception("CodeEditor.reloadFile: Unable to perform reload since no filename has been defined!")
+      self.openFile(self.filename())
+    
+    def fileReloadPolicy(self):
+      return self._fileReloadPolicy
+            
+    def setFileReloadPolicy(self,policy):
+      self._fileReloadPolicy = policy
+
     def __init__(self,parent = None,lineWrap = True):
         LineTextWidget.__init__(self,parent)
         SearchableEditor.__init__(self,parent)
         self._filename = None
         self.setTabStopWidth(30)
-        self._tabWidget = None
-        self._windowManager = None
         self._modifiedAt = None
-        self._failedCode = False
-        self._runningCode = False
+        self._tabText = ""
+        self._fileReloadPolicy = CodeEditor.FileReloadPolicy.Ask
         self._errorSelections = []
-        self._reloadWhenChanged = None
         self._blockHighlighting = True
         self._tabToolTip = '[untitled]'
-        self._MyTimer = QTimer(self)
-        self.connect(self._MyTimer,SIGNAL("timeout()"),self.onTimer)
-        self._MyTimer.start(500)
         self.setAttribute(Qt.WA_DeleteOnClose,True)
         
         self.setStyleSheet("""
-        CodeEditor,NumberBar
+        CodeEditor
         {
           color:#000;
-          background:#EEF;
+          background:#FFF;
           font-family:Consolas, Courier New,Courier;
           font-size:14px;
           font-weight:normal;
@@ -653,9 +798,8 @@ class CodeEditor(SearchableEditor,LineTextWidget):
         self.connect(self.document(), SIGNAL('modificationChanged(bool)'), self.updateUndoStatus)
         self.connect(self, SIGNAL("cursorPositionChanged()"),self.cursorPositionChanged)
         self.setLineWrap(lineWrap)
-        self.setChanged (False)
-        self.updateTab()
-
+        self.setHasUnsavedModifications(False)
+        
         
     def resizeEvent(self,e):
       LineTextWidget.resizeEvent(self,e)
@@ -699,13 +843,10 @@ class CodeEditor(SearchableEditor,LineTextWidget):
       self.cursorPositionChanged()
       self.ensureCursorVisible()
       
-    def setTabWidget(self,widget):
-      self._tabWidget = widget
-      
     def filename(self):
       return self._filename
       
-    def _setFileName(self,filename):
+    def setFilename(self,filename):
       self._filename = os.path.normpath(str(filename))
       if re.search(".py$",self._filename) or re.search(".pyw$",self._filename):
         self.activateHighlighter(True)
@@ -723,94 +864,14 @@ class CodeEditor(SearchableEditor,LineTextWidget):
         if hasattr(self,"highlighter"):
           del self.highlighter
   
-    def _saveCode(self):
-      if self.filename() == None:
-        return
-      self._modifiedAt = time.time()+10
-      try:
-        file = open(self.filename(),'w')
-        file.write(unicode(self.document().toPlainText()))
-        file.close()
-        self.setChanged(False)
-        self._modifiedAt = os.path.getmtime(self.filename())+10
-      finally:
-        file.close()
+    def hasUnsavedModifications(self):
+      return self._hasUnsavedModifications
             
-    def _openCode(self,filename):
-      if os.path.isfile(filename):
-        try:
-          file = open(filename,'r')
-          text = file.read()   
-        except IOError:
-          raise
-        self.setPlainText(text)
-        self._setFileName(filename)
-        self.updateTab()
-        self.setChanged(False)
-        return True
-      else:
-        raise IOError("Invalid path: %s" % filename)
-      return False
-            
-    def setChanged(self,hasChanged = True):
-      self._Changed = hasChanged
-      self.document().setModified(hasChanged)
-      self.updateTab()
+    def setHasUnsavedModifications(self,hasUnsavedModifications = True):
+      self._hasUnsavedModifications = hasUnsavedModifications
+      self.emit(SIGNAL("hasUnsavedModifications(bool)"),hasUnsavedModifications)
+      self.document().setModified(hasUnsavedModifications)
         
-
-    def saveFile(self):
-      if self.filename() == None:
-        return self.saveFileAs()
-      else:
-        self._saveCode()
-        return True
-        
-    def updateTab(self,running = None,failed = None):
-     filename = '[not saved]'
-     if self.filename() != None:
-        self._tabToolTip = self.filename()
-        filename = os.path.basename(self.filename())
-     if self._tabWidget != None:
-        changed_text = ""
-        running_text = ""
-        if self._Changed == True:
-          changed_text = "*"  
-        if running != None:
-          self._failedCode = False
-          self._runningCode = running
-        if self._runningCode:
-          running_text = "[...]"
-        elif failed != None:
-          self._failedCode = failed
-          self._runningCode = False
-        if self._failedCode:
-          running_text = "!"
-        self._tabWidget.setTabText(self._tabWidget.indexOf(self),running_text+changed_text+filename)
-        self._tabWidget.setTabToolTip(self._tabWidget.indexOf(self),changed_text+self.tabToolTip())
-    
-        
-    def saveFileAs(self):
-      FileName = QFileDialog.getSaveFileName(filter = "Python(*.py *.pyw)")
-      if FileName != '':
-        print "Saving document as %s" % FileName
-        if os.path.isfile(FileName):
-          pass
-        self._setFileName(FileName)
-        self._saveCode()
-        self.updateTab()
-        return True
-      else:
-        return False
-      
-    def openFile(self,FileName = None):
-      if FileName == None:
-        FileName = QFileDialog.getOpenFileName(filter = "Python(*.py *.pyw)")
-      if os.path.isfile(FileName):
-          return self._openCode(FileName)
-      else:
-        raise IOError("Invalid path: %s" % FileName)
-      return False
-
     def autoIndentCurrentLine(self):
       cursor = self.textCursor()
       
@@ -976,30 +1037,7 @@ class CodeEditor(SearchableEditor,LineTextWidget):
       
     def errorSelections(self):
       return self._errorSelections
-      
-    def tabToolTip(self):
-      return self._tabToolTip
-              
-    def requestClose(self):
-      if self._Changed:
-        MyMessageBox = QMessageBox()
-        MyMessageBox.setWindowTitle("Warning!")
-        MyMessageBox.setText("Save changes made to file \"%s\"?" % self.tabToolTip())
-        yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
-        no = MyMessageBox.addButton("No",QMessageBox.NoRole)
-        cancel = MyMessageBox.addButton("Cancel",QMessageBox.RejectRole)
-        MyMessageBox.exec_()
-        choice = MyMessageBox.clickedButton()
-        if choice == yes:
-          return self.saveFile()
-        elif choice == no:
-          return True
-        return False
-      
-    def closeEvent(self,e):
-      if self.requestClose() == False:
-        e.ignore()
-
+            
     def getCurrentCodeBlock(self):
         selection = self.getCurrentBlock()
         block = self.document().findBlock(selection.cursor.selectionStart())
@@ -1021,7 +1059,7 @@ class CodeEditor(SearchableEditor,LineTextWidget):
       self.viewport().update()
 
     def hideCurrentBlock(self):
-      block = QTextBlock()
+      block = QTextBlock()  
       selection = self.getCurrentBlock()
       startBlock = self.document().findBlock(selection.cursor.selectionStart())
       endBlock = self.document().findBlock(selection.cursor.selectionEnd())
@@ -1042,54 +1080,55 @@ class CodeEditor(SearchableEditor,LineTextWidget):
     def toggleLineWrap(self):
       self.setLineWrap(not self._lineWrap)
     
-    def alertFileContentsChanged(self):
-        MyMessageBox = QMessageBox()
-        MyMessageBox.setWindowTitle("Warning!")
-        MyMessageBox.setText("File contents of \"%s\" have changed. Reload?" % self.tabToolTip())
-        yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
-        no = MyMessageBox.addButton("No",QMessageBox.NoRole)
-        never = MyMessageBox.addButton("Never",QMessageBox.RejectRole)
-        always = MyMessageBox.addButton("Always",QMessageBox.AcceptRole)
-        MyMessageBox.exec_()
-        choice = MyMessageBox.clickedButton()
-        if choice == yes:
-          self.openFile(self.filename())
-        elif choice == no:
-          self._modifiedAt = os.path.getmtime(self.filename())
-        elif choice == never:
-          self._reloadWhenChanged = False
-          self._modifiedAt = os.path.getmtime(self.filename())
-        elif choice == always:
-          self._reloadWhenChanged = True
-          self.openFile(self.filename())          
-      
-    
-    def checkForFileModifications(self):
+    def save(self):
+      if self.filename() != None:
+        return self.saveAs(self.filename())
+      else:
+        return False
+
+    def updateFileModificationDate(self):
+      self._modifiedAt = os.path.getmtime(self.filename())+1
+
+    def fileHasChangedOnDisk(self):
       if self.filename() != None:
         if os.path.exists(self.filename()) == False:
-          pass
-          #File has been deleted...
-        else:
-          if os.path.getmtime(self.filename()) > self._modifiedAt:
-            if self._reloadWhenChanged == True:
-              self.openFile(self.filename())
-            elif self._reloadWhenChanged == False:
-              return
-            else:
-              self.alertFileContentsChanged()
-    
-    def checkRunStatus(self,caller = None):
-      self.updateTab()
-    
-    def onTimer(self):
-      self.checkForFileModifications()
-      self.checkRunStatus()
-      
+          return True
+        elif os.path.getmtime(self.filename()) > self._modifiedAt:
+            return True
+      return False
+        
+    def saveAs(self,filename):
+      if self.filename() == None:
+        return False
+      self._modifiedAt = time.time()+1
+      try:
+        file = open(self.filename(),'w')
+        file.write(unicode(self.document().toPlainText()))
+        file.close()
+        self.setHasUnsavedModifications(False)
+        self._modifiedAt = os.path.getmtime(self.filename())+1
+        return True
+      finally:
+        file.close()    
+
+    def openFile(self,filename):
+      if os.path.isfile(filename):
+        try:
+          file = open(filename,'r')
+          text = file.read()
+        except IOError:
+          raise
+        self.setPlainText(text)
+        self.setFilename(filename)
+        self.setHasUnsavedModifications(False)
+      else:
+        raise IOError("Invalid path: %s" % filename)
+           
     def activateBlockHighlighting(self,activate = False):
       self._blockHighlighting = activate
     
     def updateUndoStatus(self,status):
-      self.setChanged(status)
+      self.setHasUnsavedModifications(status)
         
     def keyPressEvent(self,e):
       SearchableEditor.keyPressEvent(self,e)
@@ -1112,14 +1151,7 @@ class CodeEditor(SearchableEditor,LineTextWidget):
       LineTextWidget.keyPressEvent(self,e)
       if e.key() == Qt.Key_Return or e.key() == Qt.Key_Enter:
         self.autoIndentCurrentLine()
-        
-      
-    def setWindowManager(self,manager):
-      self._windowManager = manager
-      
-    def windowManager(self):
-      return self._windowManager
-      
+              
     def setLineWrap(self,state):
       self._lineWrap = state
       if state:

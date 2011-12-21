@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import traceback
@@ -125,6 +126,12 @@ class CodeRunner(Reloadable,Subject):
     self._exceptions = {}
     self._tracebacks = {}
     
+  def currentWorkingDirectory(self):
+    return os.getcwd()
+    
+  def setCurrentWorkingDirectory(self,directory):
+    os.chdir(directory)
+    
   def clearExceptions(self):
     self._exceptions = {}
     
@@ -182,7 +189,7 @@ class CodeRunner(Reloadable,Subject):
     self._threads[identifier].terminate()
     
   def status(self):
-    status = dict()
+    status = {}
     for identifier in self._threads:
       status[identifier] = dict()
       status[identifier]["isRunning"] = self.isExecutingCode(identifier)
@@ -210,6 +217,12 @@ class CodeRunner(Reloadable,Subject):
         
         def __init__(self,gv):
           self.__dict__ = gv
+          
+        def __setitem__(self,key,value):
+          setattr(self,key,value)
+          
+        def __getitem__(self,key):
+          return getattr(self,key)          
           
       gvClass = GlobalVariables(gv)
       

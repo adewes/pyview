@@ -13,9 +13,6 @@ This model helps to execute GUI code in a QT main thread.
 """
 
 def _runGuiCodeSignal(f):
-  print "Executing..."
-  print "Python Thread ID:"+str(threading.current_thread().ident)
-  print "QT Thread ID:"+str(QThread.currentThread())
   f()
 	
 def execInGui(f):
@@ -23,9 +20,6 @@ def execInGui(f):
   global app
   if app == None:
     raise Exception("Invalid application handle!")
-  print "Emitting signal..."
-  print "Python Thread ID:"+str(threading.current_thread().ident)
-  print "QT Thread ID:"+str(QThread.currentThread())
   app.emit(SIGNAL("runGuiCode(PyQt_PyObject)"),f)
   
 def _createApplication():
@@ -34,7 +28,7 @@ def _createApplication():
   global _runGuiCodeSignal
   app = QApplication(sys.argv)
   app.setQuitOnLastWindowClosed(False)
-  app.connect(app,SIGNAL("runGuiCode(PyQt_PyObject)"),_runGuiCodeSignal,Qt.AutoConnection | Qt.UniqueConnection)
+  app.connect(app,SIGNAL("runGuiCode(PyQt_PyObject)"),_runGuiCodeSignal,Qt.QueuedConnection | Qt.UniqueConnection)
   signalConnected = True
   if app.thread() != QThread.currentThread():
   	raise Exception("Cannot start QT application from side thread! You will have to restart your process...")
@@ -54,5 +48,5 @@ def _ensureGuiThreadIsRunning():
   else: 
     if not signalConnected:
       print "Adding signal handler to application.."
-      print app.connect(app,SIGNAL("runGuiCode(PyQt_PyObject)"),_runGuiCodeSignal,Qt.AutoConnection | Qt.UniqueConnection)
+      print app.connect(app,SIGNAL("runGuiCode(PyQt_PyObject)"),_runGuiCodeSignal,Qt.QueuedConnection | Qt.UniqueConnection)
       signalConnected = True

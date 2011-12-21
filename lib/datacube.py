@@ -13,6 +13,7 @@ import weakref
 import re
 import string
 
+from pyview.helpers.datamanager import DataManager
 from pyview.lib.patterns import Subject,Observer,Reloadable
 
 class ChildItem:
@@ -87,9 +88,7 @@ class Datacube(Subject,Observer,Reloadable):
     """
     Sets the parent of the data cube to *parent*.
     """
-  
-    if parent != None:
-      self._parent = parent
+    self._parent = parent
     
   def index(self):
   
@@ -392,11 +391,23 @@ class Datacube(Subject,Observer,Reloadable):
         del self._children[self._children.index(item)]
         self.notify("removeChild",item.datacube())
         return
+
+  def dataManager(self):
+    return DataManager()
+
+  def toDataManager(self):
+    dataManager = DataManager()
+    dataManager.addDatacube(self)
+
+  def autoPlot(self,clear = False):
+    self.dataManager().autoPlot(self,clear = clear)
   
   def addChild(self,cube,**kwargs):
     """
     Adds a child to the datacube
     """
+    if cube == self:
+      raise Exception("Cannot add myself as child!")
     if cube in self.children():
       raise Exception("Datacube is already a child!")
     attributes = kwargs

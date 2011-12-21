@@ -19,11 +19,15 @@ class ObserverWidget(Observer):
   #We intercept the "update" call from the subject and queue it.
   def updated(self,subject = None,property = None,value = None):
     self.updatedThread(subject,property,value)
+    if not self._connected:
+      self.connect(self,SIGNAL("processUpdate(PyQt_PyObject)"),self.processUpdate,Qt.QueuedConnection | Qt.UniqueConnection)  
+      self._connected = True
     self.emit(SIGNAL("processUpdate(PyQt_PyObject)"),[subject,property,value])
     
   def processUpdate(self,args):
     self.updatedGui(*args)
     
   def __init__(self):
-    self.connect(self,SIGNAL("processUpdate(PyQt_PyObject)"),self.processUpdate,Qt.QueuedConnection)  
+    Observer.__init__(self)
+    self._connected = False
 

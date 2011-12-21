@@ -49,7 +49,7 @@ class KillableThread(threading.Thread):
         # an exception here? silently ignore?
     
     def terminate(self):
-        self.raise_exc(StopThread)
+        self.raise_exc(SystemExit)
 
 class Subject:
 
@@ -97,7 +97,11 @@ class Subject:
           #print "WARNING: notify for property %s of %s was called recursively by modifier %s, aborting." % (property,str(self),str(modifier))
           return False
         self.isNotifying = True
+        deadObservers = []
         for observer in self._observers:
+            if observer() == None:
+              deadObservers.append(observer)
+              continue
             if modifier != observer():
                 try:
                   if hasattr(observer(),'updated'):
@@ -106,6 +110,8 @@ class Subject:
                   print "An error occured when notifying observer %s." % str(observer())
                   print sys.exc_info()
                   raise
+        for deadObserver in deadObservers:
+          del self._observers[self._observers.index(deadObserver)]
         self.isNotifying = False
       except:
         print sys.exc_info()
@@ -197,7 +203,7 @@ class ThreadedDispatcher(Dispatcher,KillableThread):
         self.restart()
 
 class Observer:
-  
+
   def __init__(self):
     pass
   

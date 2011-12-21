@@ -452,6 +452,8 @@ class Plot2DWidget(QWidget,ObserverWidget):
     self.updateNames(cube.names())
       
   def updateNames(self,names):
+    currentX = self.xNames.currentText()
+    currentY = self.yNames.currentText()
     self.xNames.clear()
     self.yNames.clear()
     self.xNames.addItem("[row number]")
@@ -459,6 +461,13 @@ class Plot2DWidget(QWidget,ObserverWidget):
     for name in sorted(names):
       self.xNames.addItem(name,name)    
       self.yNames.addItem(name,name)
+    ix = self.xNames.findText(currentX)
+    iy = self.yNames.findText(currentY)
+    
+    if ix != -1:
+      self.xNames.setCurrentIndex(ix)
+    if iy != -1:
+      self.yNames.setCurrentIndex(iy)
       
   def updatedGui(self,subject = None,property = None,value = None):
     self._updated = False
@@ -509,8 +518,8 @@ class Plot2DWidget(QWidget,ObserverWidget):
     self.xNames = QComboBox()
     self.xNames.setSizeAdjustPolicy(QComboBox.AdjustToContents)
     self.addDefaultCurves=QPushButton("Autoplot")
-    self.addButton = QPushButton("Add Curve")
-    self.clearButton = QPushButton("Clear Plot")
+    self.addButton = QPushButton("Add")
+    self.clearButton = QPushButton("Clear")
     self.yNames = QComboBox()
     self.showLegend = QCheckBox("Show Legend")
     self.showLegend.setCheckState(Qt.Checked)
@@ -625,11 +634,12 @@ class DataTreeView(QTreeWidget,ObserverWidget):
   def __init__(self,parent = None):
     QTreeWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
-    self._root = None
     self._items = dict()
     self._manager = dm.DataManager()
-#    self.setMinimumWidth(200)
+    self._manager.attach(self)
     self.setHeaderLabels(["Name"])
+    for datacube in self._manager.datacubes():
+      self.addDatacube(datacube,None)
    
   def ref(self,datacube):
     return weakref.ref(datacube)
@@ -641,14 +651,21 @@ class DataTreeView(QTreeWidget,ObserverWidget):
     action = menu.exec_(self.viewport().mapToGlobal(event.pos()))
     if action == saveAsAction:
       pass
+      
+  def selectDatacube(self,datacube):
+    if self.ref(datacube) in self._items:
+      item = self._items[self.ref(datacube)]
+      self.setCurrentItem(item)
 
   def addDatacube(self,datacube,parent):
+    if self.ref(datacube) in self._items:
+      return
     item = QTreeWidgetItem()
     item.setText(0,str(datacube.name()))
-    item._cube = weakref.ref(datacube)
+    item._cube = self.ref(datacube)
     datacube.attach(self)
     self._items[self.ref(datacube)]= item
-    if parent == self._root:
+    if parent == None:
       self.insertTopLevelItem(0,item)
     else:
       self._items[self.ref(parent)].addChild(item)
@@ -661,8 +678,8 @@ class DataTreeView(QTreeWidget,ObserverWidget):
     else:
       item.parent().removeChild(item)  
   
-  def removeDatacube(self,parent,datacube):
-    if parent == self._root:
+  def removeDatacube(self,datacube,parent):
+    if parent == None:
       item = self._items[self.ref(datacube)]
       self.takeTopLevelItem(self.indexOfTopLevelItem(item))
     else:
@@ -674,47 +691,40 @@ class DataTreeView(QTreeWidget,ObserverWidget):
     
   def updateDatacube(self,cube):
     item = self._items[self.ref(cube)]
-    extraText = ""
-    if cube == self._manager.master():
-      extraText="[master]"
-    item.setText(0,cube.name()+extraText)          
-  
-  def setRoot(self,root):
-    self._root = root
-    root.attach(self)
-    self.initTreeView()
-    
+    item.setText(0,cube.name())          
+      
   def initTreeView(self):
     self.clear()
-    for child in self._root.children():
-      self.addDatacube(child,self._root)
+    dataManager = dm.DataManager()
+    for child in dataManager.datacubes():
+      self.addDatacube(child,None)
     
   def updatedGui(self,subject,property = None,value = None):
+    if property == "addDatacube":
+      self.addDatacube(value,None)
     if property == "addChild":
       child = value
-      child.attach(self)
       self.addDatacube(child,subject)
-    if property == "name" or property == "isMaster":
+    if property == "name":
       self.updateDatacube(subject)
     if property == "removeChild":
-      self.removeDatacube(subject,value)
+      self.removeDatacube(value,subject)
+    if property == "removeDatacube":
+      self.removeDatacube(value,None)
 
 class DatacubeProperties(QWidget,ObserverWidget):
   
   def updateBind(self):
     name = str(self.bindName.text())
-    if name != None and self._codeRunner != None:
-      print "Binding to local variable..."
-      self._codeRunner.gv()[name] = self._cube
-        
+    self._globals[name] = self._cube
   
-  def __init__(self,parent = None,codeRunner = None):
+  def __init__(self,parent = None,globals = globals()):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     layout = QGridLayout()
     
+    self._globals = globals
     self._cube = None
-    self._codeRunner = codeRunner
     self.name = QLineEdit()
     self.filename = QLineEdit()
     self.filename.setReadOnly(True)
@@ -764,9 +774,6 @@ class DatacubeProperties(QWidget,ObserverWidget):
     if self._cube == None:
       return
     self._cube.setTags(self.tags.text())
-
-  def updatedGui(self,subject = None,property = None,value = None):
-    pass
       
   def setDatacube(self,cube):
     if not self._cube == None:
@@ -801,24 +808,47 @@ class DataManager(QMainWindow,ObserverWidget):
     else:
       self.props.setEnabled(False)
       self.dataPlotter2D.setEnabled(False)
-    
-
+          
   def updatedGui(self,subject = None,property = None,value = None):
-    pass
+    if subject == self.manager and property == "autoPlot":
+      datacube,clear = value[0],value[1]
+      self.datacubeList.selectDatacube(datacube)
+      if clear:
+        self.dataPlotter2D.clearPlots()
+      self.dataPlotter2D.addDefaultPlot()
+      self.tabs.setCurrentWidget(self.dataPlotter2D)
+  
+        
+  def workingDirectory(self):
+    if self._workingDirectory == None: 
+      return os.getcwd()
+    return self._workingDirectory
+    
+  def setWorkingDirectory(self,filename):
+    if filename != None:
+      directory = os.path.dirname(str(filename))
+      self._workingDirectory = directory
+    else:
+      self._workingDirectory = None
   
   def loadDatacube(self):
-    filename = QFileDialog.getOpenFileName(filter = "Datacubes (*.par)")
+    filename = QFileDialog.getOpenFileName(filter = "Datacubes (*.par)",directory = self.workingDirectory())
     if not filename == '':
       cube = Datacube()
       cube.loadtxt(str(filename))
-      self.manager.addDatacube(cube,atRoot = True)    
+      self.manager.addDatacube(cube)    
+      self.setWorkingDirectory(filename)
 
   def removeCube(self):
-    if self._cube == None or self._cube.parent() == None:
+    if self._cube == None:
       return
-    self._cube.parent().removeChild(self._cube)
+    manager = dm.DataManager()
+    if self._cube in manager.datacubes():
+      print "Removing from data manager..."
+      manager.removeDatacube(self._cube)
+    elif self._cube.parent() != None:
+      self._cube.parent().removeChild(self._cube)
     self._cube = None
-    print "Removed datacube..."
     
   def addCube(self):
     manager = dm.DataManager()
@@ -849,34 +879,41 @@ class DataManager(QMainWindow,ObserverWidget):
     if self._cube == None:
       return
     if self._cube.filename() == None or saveAs:
-      filename = QFileDialog.getSaveFileName(filter = "Datacubes (*.par)")
+      filename = QFileDialog.getSaveFileName(filter = "Datacubes (*.par)",directory = self.workingDirectory())
       if filename != "":
+        self.setWorkingDirectory(filename)
         self._cube.savetxt(str(filename))
     else:
       self._cube.savetxt()
   
-  def __init__(self,parent = None,codeRunner = None):
+  def __init__(self,parent = None,globals = globals()):
     QMainWindow.__init__(self,parent)
     ObserverWidget.__init__(self)
-    self.setWindowTitle("Data Manager")
-    self.setAttribute(Qt.WA_DeleteOnClose,True)
-    self._codeRunner = codeRunner
-    splitter = QSplitter(Qt.Horizontal)
+
     self.manager = dm.DataManager()
-    self.datacubeList = DataTreeView()
-    self.datacubeViewer = DatacubeTableView()
-    self.datacubeList.setRoot(self.manager.root())
-    self.connect(self.datacubeList,SIGNAL("currentItemChanged(QTreeWidgetItem *,QTreeWidgetItem *)"),self.selectCube)
-    self.dataPlotter2D = Plot2DWidget()
-    self.dataPlotter3D = Plot3DWidget()
-    self.tabs = QTabWidget() 
-    self._cubes = []
-    self._cube = None
+    self.manager.attach(self)
+    self._globals = globals
+    
+    self._workingDirectory = None
     
     self.setStyleSheet("""
     QTreeWidget:Item {padding:6;} 
     QTreeView:Item {padding:6;}""")
 
+    self.setWindowTitle("Data Manager")
+    self.setAttribute(Qt.WA_DeleteOnClose,True)
+
+    splitter = QSplitter(Qt.Horizontal)
+
+
+    self.datacubeList = DataTreeView()
+    self.datacubeViewer = DatacubeTableView()
+    self.connect(self.datacubeList,SIGNAL("currentItemChanged(QTreeWidgetItem *,QTreeWidgetItem *)"),self.selectCube)
+    self.dataPlotter2D = Plot2DWidget()
+    self.dataPlotter3D = Plot3DWidget()
+    self.tabs = QTabWidget() 
+    self._cube = None
+    
     leftLayout = QGridLayout()
     
     leftLayout.addWidget(self.datacubeList)
@@ -907,10 +944,7 @@ class DataManager(QMainWindow,ObserverWidget):
     menubar.addMenu(filemenu)
     
     self.setCentralWidget(splitter)
-    
-    self.props = DatacubeProperties(codeRunner = codeRunner)
-    self.manager.attach(self)
-
+    self.props = DatacubeProperties(globals = globals)
     self.tabs.addTab(self.props,"Properties")
     self.tabs.addTab(self.dataPlotter2D,"2D Data Plotting")
     self.tabs.addTab(self.dataPlotter3D,"3D Data Plotting")
