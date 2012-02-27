@@ -6,12 +6,9 @@ import weakref
 
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
-#from pyview.lib.wikidb import *
-
-from PyQt4.QtGui import * 
-from PyQt4.QtCore import *
 from numpy import complex128
-from pyview.ide.patterns import ObserverWidget
+
+from pyview.gui.patterns import ObserverWidget
 
 #This is our directory model...
 class DatacubeViewModel(QAbstractItemModel,ObserverWidget):

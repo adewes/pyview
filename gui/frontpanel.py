@@ -1,7 +1,7 @@
 from PyQt4.QtGui import * 
 from PyQt4.QtCore import *
 
-from pyview.ide.patterns import ObserverWidget
+from pyview.gui.patterns import ObserverWidget
 
 class FrontPanel(QWidget,ObserverWidget):
   
@@ -21,8 +21,14 @@ class FrontPanel(QWidget,ObserverWidget):
     self.instrument.detach(self)
     
   def hideEvent(self,e):
+    print "Detaching instrument..."
     self.instrument.detach(self)
     QWidget.hideEvent(self,e)
+
+  def closeEvent(self,e):
+    print "Detaching instrument..."
+    self.instrument.detach(self)
+    QWidget.closeEvent(self,e)
     
   def showEvent(self,e):
     self.instrument.attach(self)

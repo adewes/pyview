@@ -10,7 +10,7 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt4agg import FigureManagerQTAgg
 from matplotlib.figure import Figure
-from pyview.ide.editor.codeeditor import CodeEditor
+from pyview.gui.editor.codeeditor import CodeEditor
 from math import fabs
 
 class FigureManager(FigureManagerQTAgg):

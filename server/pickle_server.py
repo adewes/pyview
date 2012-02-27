@@ -52,12 +52,16 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.request.send(returnMessage.toString())
           except Exception as exception:
             print "An exception occured:"
+            print "name: %s" % str(m.name())
             print "args: %s" % str(m.args())
             print "kwargs: %s" % str(m.kwargs())
             print "-"*40
             traceback.print_exc()
             print "-"*40
-            returnMessage = Command(name = "exception",args = [traceback.format_exc()])
+            try:
+              returnMessage = Command(name = "exception",args = [exception,traceback.format_exc()])
+            except:
+              returnMessage = Command(name = "exception",args = [Exception("Unpickable exception!"),traceback.format_exc()])
             self.request.send(returnMessage.toString())
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
@@ -69,11 +73,8 @@ def client(ip, port, message):
     for i in range(0,10):
       print conn.dispatch("qubit1mwg","frequency")
 
-MyManager = Manager()
-ThreadedTCPRequestHandler.manager = RemoteManager(MyManager)
-
-if __name__ == "__main__":
-  startServer()
+MyManager = RemoteManager()
+ThreadedTCPRequestHandler.manager = MyManager
 
 def startServer():
     # Port 0 means to select an arbitrary unused port
@@ -100,3 +101,6 @@ def startServer():
         break
     print "Shutting down..."
     server.shutdown()
+
+if __name__ == "__main__":
+  startServer()

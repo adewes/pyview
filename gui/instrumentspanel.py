@@ -13,43 +13,8 @@ from PyQt4.QtCore import *
 
 import shelve
 import pyview.helpers.instrumentsmanager
-from pyview.ide.patterns import ObserverWidget
+from pyview.gui.patterns import ObserverWidget
 from pyview.config.parameters import params
-
-"""
-Define the parameters and init functions of the plugin in the following dictionary.
-"""
-
-def restartPlugin(ide,*args,**kwargs):
-  """
-  This function restarts the plugin
-  """
-  if hasattr(ide,"instrumentsTab"):
-    ide.tabs.removeTab(ide.tabs.indexOf(ide.instrumentsTab))
-  instrumentsTab = InstrumentsPanel()
-  ide.instrumentsTab = instrumentsTab
-  ide.tabs.addTab(instrumentsTab,"Instruments")
-  ide.tabs.setCurrentWidget(instrumentsTab)
-
-def startPlugin(ide,*args,**kwargs):
-  """
-  This function starts the plugin
-  """
-  settingsMenu = ide.settingsMenu
-  reloadInstrumentsTabEntry = settingsMenu.addAction("Reload Instruments Tab")
-  ide.connect(reloadInstrumentsTabEntry,SIGNAL("triggered()"),lambda : reloadInstrumentsTab(ide))
-  restartPlugin(ide,*args,**kwargs)
-
-
-plugin = dict()
-plugin["name"] = "Instruments Panel"
-plugin["version"] = "1.0"
-plugin["author.name"] = "Andreas Dewes"
-plugin["author.email"] = "andreas.dewes@gmail.com"
-plugin["functions.start"] = startPlugin
-plugin["functions.stop"] = None
-plugin["functions.restart"] = restartPlugin
-plugin["functions.preferences"] = None
 
 class InstrumentsArea(QMainWindow,ObserverWidget):
 
@@ -118,7 +83,7 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     for instrument in selected:
       name = str(instrument.text(0))
       if name in self.dashboards:
-        self.dashboards[name].hide()
+        self.dashboards[name].close()
         #self._instrumentsArea.removeFrontPanel(self.dashboards[name])
         del self.dashboards[name]
       panel = self.manager.frontPanel(name)

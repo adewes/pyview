@@ -5,12 +5,47 @@ import traceback
 from threading import Thread
 import xmlrpclib
 import re
+from functools import wraps
 from pyview.lib.classes import *
+import copy
+
+class RemoteInterfaceDecorator(object):
+
+  """
+  A decorator class that will decorate certain functions of a class such that
+  they return True or False instead of the original return value when called.
+  This is useful for modifying a class that is going to get used through a remote interface,
+  such as the InstrumentManager class: Remotely calling initInstrument or getInstrument will in this case not
+  try to return an instance of the instrument that has been created (which usually is unpickable and therefore cannot be send through a remote interface).
+  """
+  
+  def __init__(self,functionsToReplace = []):
+    self._functionsToReplace = functionsToReplace
+    
+  def __call__(self,cls):
+    
+    def replaceMethod(method):
+      
+      @wraps(method)
+      def replacementFunction(args,kwargs,method):
+        result = method(*args,**kwargs)
+        if result:
+          return True
+        return False
+      
+      return lambda *args,**kwargs:replacementFunction(args,kwargs,method)
+    
+    for functionToReplace in self._functionsToReplace:
+      if hasattr(cls,functionToReplace):
+        f = getattr(cls,functionToReplace)
+        setattr(cls,functionToReplace,replaceMethod(f))
+
+    return cls
 
 class InstrumentHandle:
 
   """
-  Contains information on a given instrument:
+  Contains all information on an instrument handle used by the instruments manager.
   """
 
   def instrumentModule(self):
@@ -44,40 +79,6 @@ class InstrumentHandle:
   def instrument(self):
     return self._instrument
     
-
-class RemoteManager:
-
-  """
-  The remote version of the instrument manager. Loads and reloads instruments and dispatches commands to them. 
-  """
-  
-  def __init__(self,manager):
-    self._manager = manager
-    self._observers = dict()
-    
-  def __getattr__(self,name):
-    return getattr(self._manager,name)
-        
-  def initInstrument(self,name,baseclass = None,args = [],kwargs = {},forceReload = False):
-    if self._manager.initInstrument(name,args = args,baseclass = baseclass,kwargs = kwargs,forceReload = forceReload) == None:
-      return False
-    return True
-    
-  def reloadInstrument(self,name,baseclass = None,args = [],kwargs = {}):
-    print "Reloading %s,%s with arguments:" % (name,baseclass),args,kwargs
-    self._manager.reloadInstrument(name,baseclass,args = args,kwargs = kwargs)
-    return True
-
-  def dispatch(self,instrument,command,args = [],kwargs = {}):
-    instr = self._manager.getInstrument(instrument)
-    if hasattr(instr,command):
-      method = getattr(instr,command)
-      if callable(method):
-        return  method(*args,**kwargs)
-      else:
-        return method
-    raise Exception("Unknown function name: %s" % command)
-
 class Manager(Subject,Singleton):
 
   """
@@ -86,10 +87,13 @@ class Manager(Subject,Singleton):
 
   _initialized = False
   
-  def __init__(self):
+  def __init__(self,defaultInstrumentsModule = "instruments.", defaultFrontpanelsModule = "frontpanels."):
     """
     Initialize the instrument manager.
     """
+    self._defaultInstrumentsModule = defaultInstrumentsModule
+    self._defaultFrontpanelsModule = defaultFrontpanelsModule
+    
     if self._initialized == True:
       return
     self._initialized = True
@@ -146,7 +150,7 @@ class Manager(Subject,Singleton):
         params[name]=self.getInstrument(name).parameters()
       except:
         print "An error occured when storing the parameters of instrument %s" % name
-        pass
+        print tracebck.print_exc()
     return params
 
   def handle(self,name):
@@ -157,6 +161,7 @@ class Manager(Subject,Singleton):
       return self._instruments[name.lower()]
     except KeyError:
       return None
+
     
   def frontPanel(self,name):
     """
@@ -184,15 +189,15 @@ class Manager(Subject,Singleton):
         remoteServer = ServerConnection(result.groups(0)[0],int(result.groups(0)[1]))
       except socket.error:
         print "Connection to remote host failed!"
-        return None
+        raise
     else:
       result = re.match(r'^http\:\/\/(.*)\:(\d+)\/(.*)$',address)
       if result:
         (host,port,name) = result.groups(0)
         try:
           remoteServer = xmlrpclib.ServerProxy("http://%s:%s" % (host,port))
-        except SocketError:
-          return None
+        except socket.error:
+          raise
       else:
         return None
 
@@ -207,9 +212,7 @@ class Manager(Subject,Singleton):
       try:
         instrument = RemoteInstrument(name,remoteServer,baseclass,args,kwargs,forceReload)
       except:
-        print "Cannot initialize instrument:"
-        traceback.print_exc()
-        return None
+        raise
       handle = InstrumentHandle(name,baseclass,instrument,args = args,kwargs = kwargs,remote = True,remoteServer = remoteServer)
       self._instruments[name.lower()] = handle
       self.notify("instruments",self._instruments)
@@ -224,7 +227,7 @@ class Manager(Subject,Singleton):
     if name.lower() in self._instruments:
       return self._instruments[name.lower()].instrument()
     else:
-      return None
+      raise AttributeError("Unknown instrument: %s" % name)
     
   def _isUrl(self,name):
     if re.match(r'^rip\:\/\/',name) or  re.match(r'^http\:\/\/',name):
@@ -249,7 +252,11 @@ class Manager(Subject,Singleton):
         args = params["args"]
       else:
         args = []
-      self.initInstrument(name = url,baseclass = baseclass,args = args,kwargs = kwargs,**globalParameters)
+      try:
+        self.initInstrument(name = url,baseclass = baseclass,args = args,kwargs = kwargs,**globalParameters)
+      except:
+        print "Could not initialize instrument: %s" % url
+        traceback.print_exc()
     
   def initInstrument(self,name,baseclass = None,args = [],kwargs = {},forceReload = False):
     """
@@ -270,45 +277,30 @@ class Manager(Subject,Singleton):
       if baseclass == None:
         baseclass = name
       baseclass = baseclass.lower()
-
       try:
-        instrumentModule = __import__("instruments.%s" % baseclass,globals(),globals(),[baseclass],-1)
-        reload(instrumentModule)
-      except ImportError:
-        print "instrument: Unknown instrument class: %s" % baseclass
-        print traceback.print_exc()
-        return None
-
+        if "." in baseclass:
+          instrumentModule = __import__("%s" % baseclass,globals(),globals(),["Instr"],0)
+        else:
+          instrumentModule = __import__("%s%s" % (self._defaultInstrumentsModule,baseclass),globals(),globals(),["Instr"],0)
+      except:
+        raise
       try:
         instrument = instrumentModule.Instr(name = name)
         instrument.initialize(*args,**kwargs)
       except:
-        print "An error occured when loading instrument \"%s\":" % name
-        print traceback.print_exc()
-        return None        
+        raise
 
       handle = InstrumentHandle(name,baseclass,instrument,instrumentModule,args = args,kwargs = kwargs)
       self._instruments[name.lower()] = handle
       self.notify("instruments",self._instruments)
       return handle.instrument()
   
-  def stopInstrument(self,handle):
-    try:
-      if handle.instrument().isAlive() == False:
-        return
-      handle.instrument().stop()
-      handle.instrument().join(2)
-      if handle.instrument().isAlive():
-        print "Error when stopping instrument %s " % handle.name()
-        handle.instrument().terminate()
-      else:
-          if DEBUG:
-            print "Stopped %s" % handle.name()
-    except:
-      print "Unknown error when stopping the instrument: %s" % handle.name()
-      print traceback.print_exc()
-  
   def reloadInstrument(self,name,baseclass = None,args = [],kwargs = {}):
+    
+    """
+    Reloads a given instrument.
+    """
+  
     print "Reloading %s" %  name
     if not name.lower() in self._instruments:
       raise KeyError("No such instrument: %s" % name)
@@ -316,7 +308,6 @@ class Manager(Subject,Singleton):
     handle = self._instruments[name.lower()]
     if handle.instrument().isAlive():
       raise Exception("Cannot reload instrument while it is running...")
-#    self.stopInstrument(handle)
 
     if args != []:
       passedArgs = args
@@ -344,9 +335,29 @@ class Manager(Subject,Singleton):
       self.notify("instruments",self._instruments)
       return handle.instrument()
 
-    
   def instruments(self):
     return self._instruments
     
   def instrumentNames(self):
     return self._instruments.keys()
+    
+class RemoteManager():
+
+  def __init__(self):
+    self._manager = Manager()
+    
+  def __getattr__(self,attr):
+    if hasattr(self._manager,attr):
+      attr = getattr(self._manager,attr)
+      return lambda *args,**kwargs:True if attr(*args,**kwargs) else False
+      
+  def dispatch(self,instrument,command,args = [],kwargs = {}):
+    instr = self._manager.getInstrument(instrument)
+    if hasattr(instr,command):
+      method = getattr(instr,command)
+      if callable(method):
+        return  method(*args,**kwargs)
+      else:
+        return method
+    raise Exception("Unknown function name: %s" % command)
+  

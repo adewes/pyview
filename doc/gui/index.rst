@@ -6,7 +6,7 @@ This section contains the documentation of the GUI classes.
 IDE
 --------
 
-.. automodule:: pyview.gui.ide
+.. autoclass:: pyview.gui.ide.IDE
     :show-inheritance:
     :undoc-members:
     :members:
@@ -14,7 +14,7 @@ IDE
 Data Manager
 ------------
 
-.. automodule:: pyview.ide.datamanager
+.. autoclass:: pyview.gui.datamanager.DataManager
     :show-inheritance:
     :undoc-members:
     :members:
@@ -22,7 +22,7 @@ Data Manager
 Instruments Panel
 -----------------
 
-.. automodule:: pyview.ide.plugins.instrumentspanel
+.. autoclass:: pyview.gui.instrumentspanel.InstrumentsPanel
     :show-inheritance:
     :undoc-members:
     :members:

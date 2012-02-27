@@ -259,7 +259,7 @@ class Datacube(Subject,Observer,Reloadable):
     
   def search(self,**kwargs):
     """
-    Searches for a given combination of values in the datacube, starting from index "start".
+    Searches for a given combination of values in the datacube.
     Example: datacube.search(a = 4, b = -3,c = 2,start = 0) will return the index of the first row where a == 4, b == -3, c == 2,
     starting at index 0. If no row matches the given criteria, search will return [].
     """

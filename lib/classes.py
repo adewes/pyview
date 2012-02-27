@@ -1,18 +1,9 @@
 """
 Some convenience classes for managing instruments and frontpanels.
 """
-from xml.dom.minidom import Document
-from xml.dom.minidom import parse, parseString
 
 import traceback
-import binascii
 import socket
-import threading
-import SocketServer
-import sys
-import os
-import random
-import time 
 
 try:
   import visa
@@ -133,16 +124,8 @@ class VisaInstrument(Instrument):
           return attr
       raise AttributeError("No such attribute: %s" % name)
 
-from SimpleXMLRPCServer import SimpleXMLRPCServer
-from SimpleXMLRPCServer import SimpleXMLRPCRequestHandler
-import xmlrpclib
-# Restrict to a particular path.
-class RequestHandler(SimpleXMLRPCRequestHandler):
-    rpc_paths = ('/RPC2',)
-
 import pickle
 import cPickle
-import socket
 from struct import pack,unpack
 
 class Command:
@@ -212,8 +195,7 @@ class ServerConnection:
       if response == None:
         raise Exception("Connection to server %s port %d failed." % (self._ip,self._port))
       if response.name() == "exception" and len(response.args()) > 0:
-        #If something went wrong, the exception that was raised will be transmitted as the first return argument.
-        sys.stderr.write(response.args()[0])
+        raise response.args()[0]
       return response.args()[0]
     except:
       self._socket = self.openConnection()
@@ -223,7 +205,6 @@ class ServerConnection:
     return lambda *args,**kwargs:self._send(attr,args,kwargs)
 
 class RemoteInstrument(ThreadedDispatcher,Reloadable,object):
-
 
   def __init__(self,name,server,baseclass = None, args = [],kwargs = {},forceReload = False):
     ThreadedDispatcher.__init__(self)

@@ -1,8 +1,7 @@
 import sys
 import math
 
-from pyview.ide.datamanager import *
-from pyview.ide.dataviewer import *
+from pyview.gui.datamanager import *
 import pyview.helpers.datamanager as dm
 from pyview.lib.datacube import *
 

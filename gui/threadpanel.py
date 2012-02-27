@@ -9,7 +9,7 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from pyview.config.parameters import *
-from pyview.ide.patterns import ObserverWidget
+from pyview.gui.patterns import ObserverWidget
 
 class ThreadPanel(QWidget,ObserverWidget):
 
@@ -31,7 +31,7 @@ class ThreadPanel(QWidget,ObserverWidget):
   
   def updateThreadList(self):
     threadDict = self._codeRunner.status()
-    if threadDict == None:
+    if threadDict == None or type(threadDict) != dict:
       return
     for identifier in threadDict:
       if identifier not in self._threadItems:

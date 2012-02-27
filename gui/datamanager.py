@@ -8,19 +8,19 @@ import time
 
 from pyview.gui.coderunner import execInGui
 
-from pyview.ide.mpl.canvas import *
-reload(sys.modules['pyview.ide.mpl.canvas'])
-from pyview.ide.mpl.canvas import *
+from pyview.gui.mpl.canvas import *
+reload(sys.modules['pyview.gui.mpl.canvas'])
+from pyview.gui.mpl.canvas import *
 
 
 import pyview.helpers.datamanager as dm
 from pyview.lib.datacube import *
 from pyview.lib.classes import *
 from pyview.lib.patterns import *
-from pyview.ide.datacubeview import *
-reload(sys.modules['pyview.ide.datacubeview'])
-from pyview.ide.datacubeview import *
-from pyview.ide.patterns import ObserverWidget
+from pyview.gui.datacubeview import *
+reload(sys.modules['pyview.gui.datacubeview'])
+from pyview.gui.datacubeview import *
+from pyview.gui.patterns import ObserverWidget
 
 import numpy
 
@@ -718,7 +718,7 @@ class DatacubeProperties(QWidget,ObserverWidget):
     name = str(self.bindName.text())
     self._globals[name] = self._cube
   
-  def __init__(self,parent = None,globals = globals()):
+  def __init__(self,parent = None,globals = {}):
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     layout = QGridLayout()
@@ -886,7 +886,7 @@ class DataManager(QMainWindow,ObserverWidget):
     else:
       self._cube.savetxt()
   
-  def __init__(self,parent = None,globals = globals()):
+  def __init__(self,parent = None,globals = {}):
     QMainWindow.__init__(self,parent)
     ObserverWidget.__init__(self)
 

@@ -42,6 +42,7 @@ def _ensureGuiThreadIsRunning():
   if app == None:
     print "Creating new application..."
     thread = Thread(target = _createApplication)
+    thread.daemon = True
     thread.start()
     while thread.is_alive() and (app == None or app.startingUp()):
       time.sleep(0.01)

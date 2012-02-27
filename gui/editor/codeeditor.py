@@ -10,7 +10,7 @@ import math
 import sys
 import time
 
-from pyview.ide.patterns import ObserverWidget
+from pyview.gui.patterns import ObserverWidget
 
 DEVELOPMENT = False
 
@@ -287,11 +287,11 @@ class CodeEditorWindow(QWidget):
         elif choice == no:
           editor.updateFileModificationDate()
         elif choice == never:
-          editor.updateFileModificationDate()
           editor.setFileReloadPolicy(CodeEditor.FileReloadPolicy.Never)
+          editor.updateFileModificationDate()
         elif choice == always:
-          editor.reloadFile()  
           editor.setFileReloadPolicy(CodeEditor.FileReloadPolicy.Always)
+          editor.reloadFile()  
     
     def onTimer(self):
       for i in range(0,self.Tab.count()):

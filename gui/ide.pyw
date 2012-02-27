@@ -16,7 +16,7 @@ from pyview.gui.editor.codeeditor import *
 from pyview.gui.threadpanel import *
 from pyview.gui.project import Project
 from pyview.helpers.coderunner import MultiProcessCodeRunner
-from pyview.ide.patterns import ObserverWidget
+from pyview.gui.patterns import ObserverWidget
 from pyview.config.parameters import params
 
 class LogProxy:
@@ -379,6 +379,8 @@ class IDE(QMainWindow,ObserverWidget):
 
         changeWorkingPath = self.mainToolbar.addAction(self._icons["workingPath"],"Change working path")
         killThread = self.mainToolbar.addAction(self._icons["killThread"],"Kill Thread")
+        
+        self.connect(executeBlock,SIGNAL('triggered()'),lambda: self.executeCode(self.editorWindow.currentEditor().getCurrentCodeBlock(),filename = self.editorWindow.currentEditor().filename() or "[unnamed buffer]",editor = self.editorWindow.currentEditor(),identifier = id(self.editorWindow.currentEditor())))
         
         self.connect(newFile, SIGNAL('triggered()'), self.editorWindow.newEditor)
         self.connect(openFile, SIGNAL('triggered()'), self.editorWindow.openFile)
