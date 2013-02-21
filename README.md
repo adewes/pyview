@@ -17,10 +17,6 @@ The repository is organized in the following way:
 * *server* contains server scripts that implement a fully transparent remote control scheme for measurement instruments over the network using Python.
 * *test* contains various test scripts. 
 
-##Usage
-
-The package is designed to be modular, so you can use most of the components individually. Check out the *scripts* directory for some examples.
-
 ##Terms of Usage
 
 The code, unless otherwise indicated in the source file, can be freely reused. Feel free to include a reference to this code if you reuse it in your own project.
