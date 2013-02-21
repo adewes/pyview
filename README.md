@@ -21,6 +21,10 @@ The repository is organized in the following way:
 
 The package is designed to be modular, so you can use most of the components individually. Check out the *scripts* directory for some examples.
 
+##Terms of Usage
+
+The code, unless otherwise indicated in the source file, can be freely reused. Feel free to include a reference to this code if you reuse it in your own project.
+
 ##Further information
 
 This code is currently unmaintained. For further information on this code and my PhD work, check out my personal website (http://www.andreas-dewes.de/en/publications).
