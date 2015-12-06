@@ -16,4 +16,4 @@ if cube != newcube:
 else:
 	print "Cubes are equal!"
 
-print "Elaspsed time: %g s" % (time.time()-start)
+print "Elaspsed time: {0:g} s".format((time.time()-start))

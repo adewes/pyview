@@ -193,7 +193,7 @@ class XYPlot(QLabel):
         cnt+=1
         lastSlope = slope
       lastPoint = currentPoint
-    print cnt," points used (instead of %d)." % len(scanRange)
+    print cnt," points used (instead of {0:d}).".format(len(scanRange))
     Path.lineTo(currentPoint)
     while len(self.transformedPoints) <= i:
       self.transformedPoints.append(QPainterPath())
@@ -253,7 +253,7 @@ class XYPlot(QLabel):
     ticks = generateTicks(viewRect.left(),viewRect.right(),8)
 
     for tick in ticks:
-      text = "%g" % tick
+      text = "{0:g}".format(tick)
       screenCoordinate = self.screenX(tick)
       rect = metrics.boundingRect(text)
       painter.drawText(screenCoordinate-rect.width()/2.0,self.height()*(1.0-self.borderY)+ rect.height(),text)
@@ -261,7 +261,7 @@ class XYPlot(QLabel):
     ticks = generateTicks(viewRect.top(),viewRect.bottom(),7)
 
     for tick in ticks:
-      text = "%g" % tick
+      text = "{0:g}".format(tick)
       screenCoordinate = self.screenY(tick)
       rect = metrics.boundingRect(text)
       painter.drawText(0,screenCoordinate-rect.height()/2,self.width()*self.borderX-4,rect.height(),Qt.AlignRight,text)

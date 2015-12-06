@@ -36,7 +36,7 @@ def autotest():
         sys.exit(2)
 
 def testinfo():
-    print "%d tests disabled" % common.skipped
+    print "{0:d} tests disabled".format(common.skipped)
     
 if __name__ == '__main__':
   runtests()

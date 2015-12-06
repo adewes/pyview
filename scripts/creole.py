@@ -38,9 +38,9 @@ class Rules:
     url =  r'''(?P<url>
             (^ | (?<=\s | [.,:;!?()/=]))
             (?P<escaped_url>~)?
-            (?P<url_target> (?P<url_proto> %s ):\S+? )
+            (?P<url_target> (?P<url_proto> {0!s} ):\S+? )
             ($ | (?=\s | [,.:;!?()] (\s | $)))
-        )''' % proto
+        )'''.format(proto)
     link = r'''(?P<link>
             \[\[
             (?P<link_target>.+?) \s*
@@ -117,9 +117,9 @@ class Rules:
             \| \s*
             (
                 (?P<head> [=][^|]+ ) |
-                (?P<cell> (  %s | [^|])+ )
+                (?P<cell> (  {0!s} | [^|])+ )
             ) \s*
-        ''' % '|'.join([link, macro, image, code])
+        '''.format('|'.join([link, macro, image, code]))
 
 class Parser:
     """
@@ -359,7 +359,7 @@ class Parser:
         groups = match.groupdict()
         for name, text in groups.iteritems():
             if text is not None:
-                replace = getattr(self, '_%s_repl' % name)
+                replace = getattr(self, '_{0!s}_repl'.format(name))
                 replace(groups)
                 return
 

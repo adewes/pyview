@@ -43,7 +43,7 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
         if m == None:
           return
         if DEBUG:
-          print "Received command: %s" % m.name()
+          print "Received command: {0!s}".format(m.name())
         if hasattr(self.manager,m.name()):
           method = getattr(self.manager,m.name())
           try:
@@ -52,9 +52,9 @@ class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
             self.request.send(returnMessage.toString())
           except Exception as exception:
             print "An exception occured:"
-            print "name: %s" % str(m.name())
-            print "args: %s" % str(m.args())
-            print "kwargs: %s" % str(m.kwargs())
+            print "name: {0!s}".format(str(m.name()))
+            print "args: {0!s}".format(str(m.args()))
+            print "kwargs: {0!s}".format(str(m.kwargs()))
             print "-"*40
             traceback.print_exc()
             print "-"*40
@@ -86,7 +86,7 @@ def startServer():
     server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
     ip, port = server.server_address
   
-    print "Running on ip %s, port %d" % (ip,port)
+    print "Running on ip {0!s}, port {1:d}".format(ip, port)
 
     server_thread = threading.Thread(target=server.serve_forever)
 

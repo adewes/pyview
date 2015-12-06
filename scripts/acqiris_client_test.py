@@ -8,8 +8,8 @@ params = [2,250,2,250,180,0,0,0,0,0]
 for param in params:
 	data+=struct.pack("d",double(param))
 data+='\0'
-print "\"%s\"" %data
-print "Length: %d" % len(data)
+print "\"{0!s}\"".format(data)
+print "Length: {0:d}".format(len(data))
 ##
 # SOCK_DGRAM is the socket type to use for UDP sockets
 for i in range(0,1):
@@ -26,18 +26,18 @@ for i in range(0,1):
 		buffer+=received
 		received = sock.recv(chunk)
 
-	print "Sent:     %s" % data
+	print "Sent:     {0!s}".format(data)
 	strlen = 0
 	print "Done"
 	print type(buffer)
-	print "Buffer length: %d" % len(buffer)
+	print "Buffer length: {0:d}".format(len(buffer))
 	for i in range(0,len(buffer)):
 		code = struct.unpack("B1",buffer[i])[0]
 		if code == 0:
 			print "Found zero!"
 			strlen = i 
 			break
-	print "Length: %d" % strlen
+	print "Length: {0:d}".format(strlen)
 	print len(buffer)
 	print buffer[0:strlen]
 	index0 = strlen
@@ -50,7 +50,7 @@ for i in range(0,1):
 ##
 figure(1)
 cla()
-print "Received %d points" % len(values)
+print "Received {0:d} points".format(len(values))
 scatter(range(0,len(values)),values)
 figure(2)
 cla()
