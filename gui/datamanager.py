@@ -718,7 +718,9 @@ class DatacubeProperties(QWidget,ObserverWidget):
     name = str(self.bindName.text())
     self._globals[name] = self._cube
   
-  def __init__(self,parent = None,globals = {}):
+  def __init__(self,parent = None,globals =None):
+    if globals is None:
+        globals = {}
     QWidget.__init__(self,parent)
     ObserverWidget.__init__(self)
     layout = QGridLayout()
@@ -886,7 +888,9 @@ class DataManager(QMainWindow,ObserverWidget):
     else:
       self._cube.savetxt()
   
-  def __init__(self,parent = None,globals = {}):
+  def __init__(self,parent = None,globals =None):
+    if globals is None:
+        globals = {}
     QMainWindow.__init__(self,parent)
     ObserverWidget.__init__(self)
 

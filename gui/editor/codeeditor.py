@@ -304,7 +304,11 @@ class CodeEditorWindow(QWidget):
           finally:
             self.Tab.setCurrentWidget(currentEditor)
                       
-    def __init__(self,parent=None,gv = dict(),lv = dict(),newEditorCallback = None):
+    def __init__(self,parent=None,gv =None,lv =None,newEditorCallback = None):
+        if gv is None:
+                gv = dict()
+        if lv is None:
+                lv = dict()
         self.editors = []
         self.count = 1
         self._workingDirectory = None

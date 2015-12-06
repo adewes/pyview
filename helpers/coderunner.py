@@ -47,12 +47,16 @@ class CodeThread (KillableThread):
   A class representing a thread in which code is executed. This class is used by the CodeRunner class.
   """
 
-  def __init__(self,code,gv = dict(),lv = dict(),callback = None,filename = "<my string>"):
+  def __init__(self,code,gv =None,lv =None,callback = None,filename = "<my string>"):
     """
     Initializes the class with a given code string, a global and local variables dictionary, 
     an optional callback function which is called when the code execution finishes and a filename
     of the code that is going to be executed and which will be displayed in a stack trace.
     """
+    if gv is None:
+        gv = dict()
+    if lv is None:
+        lv = dict()
     KillableThread.__init__(self)
     self._gv = gv
     self._lv = lv
@@ -161,16 +165,24 @@ class CodeRunner(Reloadable,Subject):
     CodeRunner._id+=1
     return CodeRunner._id
 
-  def __init__(self,gv = dict(),lv = dict()):
+  def __init__(self,gv =None,lv =None):
+    if gv is None:
+        gv = dict()
+    if lv is None:
+        lv = dict()
     Reloadable.__init__(self)
     Subject.__init__(self)
     self._threadID = 0
     self.clear(gv = gv,lv = lv)
     
-  def clear(self,gv = dict(),lv = dict()):
+  def clear(self,gv =None,lv =None):
     """
     Reinitializes the class and deletes all running threads.
     """
+    if gv is None:
+        gv = dict()
+    if lv is None:
+        lv = dict()
     self._gv = gv
     self._lv = dict()
     self._threads = {}
@@ -416,7 +428,11 @@ class CodeProcess(Process):
       
 class MultiProcessCodeRunner():
   
-  def __init__(self,gv = dict(),lv = dict()):
+  def __init__(self,gv =None,lv =None):
+    if gv is None:
+        gv = dict()
+    if lv is None:
+        lv = dict()
     self._codeProcess = CodeProcess()
     self._codeProcess.start()
     self._timeout = 2

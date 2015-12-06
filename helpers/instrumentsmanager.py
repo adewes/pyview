@@ -19,7 +19,9 @@ class RemoteInterfaceDecorator(object):
   try to return an instance of the instrument that has been created (which usually is unpickable and therefore cannot be send through a remote interface).
   """
   
-  def __init__(self,functionsToReplace = []):
+  def __init__(self,functionsToReplace =None):
+    if functionsToReplace is None:
+        functionsToReplace = []
     self._functionsToReplace = functionsToReplace
     
   def __call__(self,cls):
@@ -51,7 +53,11 @@ class InstrumentHandle:
   def instrumentModule(self):
     return self._module
   
-  def __init__(self,name,baseClass,instrument,module = None,remote = False,remoteServer = None,args = [],kwargs = {}):
+  def __init__(self,name,baseClass,instrument,module = None,remote = False,remoteServer = None,args =None,kwargs =None):
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
     self._name = name.lower()
     self._baseClass = baseClass
     self._instrument = instrument
@@ -104,10 +110,12 @@ class Manager(Subject,Singleton):
  
     self._instruments = dict()
 
-  def saveState(self,stateName,instruments = [],withInitialization = True):
+  def saveState(self,stateName,instruments =None,withInitialization = True):
     """
     Return a dictionary containing the parameters of all the instruments.
     """
+    if instruments is None:
+        instruments = []
     state = dict()
     for name in self._instruments.keys():
       try:
@@ -178,10 +186,14 @@ class Manager(Subject,Singleton):
     frontPanel.setWindowTitle("%s front panel" % name)
     return frontPanel
     
-  def initRemoteInstrument(self,address,baseclass = None,args = [],kwargs = {},forceReload = False):
+  def initRemoteInstrument(self,address,baseclass = None,args =None,kwargs =None,forceReload = False):
     """
     Loads a remote instrument, either through the HTTP XML-RPC protocol or through the custom Remote Instrument Protocol (RIP)
     """
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
     result =  re.match(r'^rip\:\/\/(.*)\:(\d+)\/(.*)$',address)
     if result:
       (host,port,name) = result.groups(0)
@@ -234,7 +246,9 @@ class Manager(Subject,Singleton):
       return True
     return False
     
-  def initInstruments(self,instruments,globalParameters = {}):
+  def initInstruments(self,instruments,globalParameters =None):
+    if globalParameters is None:
+        globalParameters = {}
     for params in instruments:
       url = ""
       if 'serverAddress' in params:
@@ -258,11 +272,15 @@ class Manager(Subject,Singleton):
         print "Could not initialize instrument: %s" % url
         traceback.print_exc()
     
-  def initInstrument(self,name,baseclass = None,args = [],kwargs = {},forceReload = False):
+  def initInstrument(self,name,baseclass = None,args =None,kwargs =None,forceReload = False):
     """
     Loads an instrument. "name" is either the plain name of the instrument to be initialized (e.g. "vna1") or an URL (e.g. "rip://localhost:8000/vna1")
     Returns the reference to the instrument object, or None if the initialization fails.
     """
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
     print "Initializing instrument %s" % name
     if name.lower() in self._instruments:
       if forceReload:
@@ -295,11 +313,15 @@ class Manager(Subject,Singleton):
       self.notify("instruments",self._instruments)
       return handle.instrument()
   
-  def reloadInstrument(self,name,baseclass = None,args = [],kwargs = {}):
+  def reloadInstrument(self,name,baseclass = None,args =None,kwargs =None):
     
     """
     Reloads a given instrument.
     """
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
   
     print "Reloading %s" %  name
     if not name.lower() in self._instruments:
@@ -351,7 +373,11 @@ class RemoteManager():
       attr = getattr(self._manager,attr)
       return lambda *args,**kwargs:True if attr(*args,**kwargs) else False
       
-  def dispatch(self,instrument,command,args = [],kwargs = {}):
+  def dispatch(self,instrument,command,args =None,kwargs =None):
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
     instr = self._manager.getInstrument(instrument)
     if hasattr(instr,command):
       method = getattr(instr,command)

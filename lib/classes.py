@@ -130,7 +130,11 @@ from struct import pack,unpack
 
 class Command:
 
-  def __init__(self,name = None,args = [],kwargs = {}):
+  def __init__(self,name = None,args =None,kwargs =None):
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
     self._name = name
     self._args = args
     self._kwargs = kwargs
@@ -174,8 +178,12 @@ class ServerConnection:
   def port(self):
     return self._port
 
-  def _send(self,command,args = [],kwargs = {}):
+  def _send(self,command,args =None,kwargs =None):
     #We set some socket options that help to avoid errors like 10048 (socket already in use...)
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
     command = Command(name = command,args = args,kwargs = kwargs)
     sock = self._socket
     try:
@@ -206,7 +214,11 @@ class ServerConnection:
 
 class RemoteInstrument(ThreadedDispatcher,Reloadable,object):
 
-  def __init__(self,name,server,baseclass = None, args = [],kwargs = {},forceReload = False):
+  def __init__(self,name,server,baseclass = None, args =None,kwargs =None,forceReload = False):
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
     ThreadedDispatcher.__init__(self)
     Reloadable.__init__(self)
     server.initInstrument(name,baseclass,args,kwargs,forceReload)
@@ -216,7 +228,11 @@ class RemoteInstrument(ThreadedDispatcher,Reloadable,object):
     self._args = args
     self._kwargs = kwargs
     
-  def remoteDispatch(self,command,args = [],kwargs = {}):
+  def remoteDispatch(self,command,args =None,kwargs =None):
+    if args is None:
+        args = []
+    if kwargs is None:
+        kwargs = {}
     result =  self._server.dispatch(self._name,command,args,kwargs)
     self.notify(command,result)
     return result
