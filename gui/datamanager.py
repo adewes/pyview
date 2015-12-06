@@ -121,7 +121,7 @@ class Plot3DWidget(QWidget,ObserverWidget):
     if ((not plot.xname in self._cube.names()) and plot.xname != "[row number]") or ((not plot.yname in self._cube.names())  and plot.yname != "[row number]"):
       return
     plot.cube = self._cube 
-    plot.legend = "%s, %s vs. %s" % (self._cube.name(),plot.xname,plot.yname)
+    plot.legend = "{0!s}, {1!s} vs. {2!s}".format(self._cube.name(), plot.xname, plot.yname)
     plot.style = 'line'
     if plot.xname != "[row number]":
       xvalues = plot.cube.column(plot.xname)
@@ -406,7 +406,7 @@ class Plot2DWidget(QWidget,ObserverWidget):
     if ((not plot.xname in self._cube.names()) and plot.xname != "[row number]") or ((not plot.yname in self._cube.names())  and plot.yname != "[row number]"):
       return
     plot.cube = self._cube 
-    plot.legend = "%s, %s vs. %s" % (self._cube.name(),plot.xname,plot.yname)
+    plot.legend = "{0!s}, {1!s} vs. {2!s}".format(self._cube.name(), plot.xname, plot.yname)
     plot.style = 'line'
     if plot.xname != "[row number]":
       xvalues = plot.cube.column(plot.xname)

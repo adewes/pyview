@@ -134,7 +134,7 @@ class CodeEditorWindow(QWidget):
       currentEditor = self.currentEditor()
       filename = str(QFileDialog.getSaveFileName(filter = "Python(*.py *.pyw)",directory = self.workingDirectory()))
       if filename != "":
-        print "Saving document as %s" % filename
+        print "Saving document as {0!s}".format(filename)
         self.setWorkingDirectory(filename)
         currentEditor.setFilename(filename)
         return self.saveCurrentFile()
@@ -190,8 +190,8 @@ class CodeEditorWindow(QWidget):
         editor.append("")
         editor.activateHighlighter()
       self.editors.append(editor)
-      self.Tab.addTab(editor,"untitled %i" % self.count)
-      self.Tab.setTabToolTip(self.Tab.indexOf(editor),"untitled %i" % self.count)
+      self.Tab.addTab(editor,"untitled {0:d}".format(self.count))
+      self.Tab.setTabToolTip(self.Tab.indexOf(editor),"untitled {0:d}".format(self.count))
       self.connect(editor,SIGNAL("hasUnsavedModifications(bool)"),lambda changed,editor = editor: self.editorHasUnsavedModifications(editor,changed))
       self.count = self.count + 1
       self.Tab.setCurrentWidget(editor)
@@ -224,7 +224,7 @@ class CodeEditorWindow(QWidget):
         messageBox = QMessageBox()
         messageBox.setWindowTitle("Warning!")
         if editor.filename() != None:
-          messageBox.setText("Save changes made to file \"%s\"?" % editor.filename())
+          messageBox.setText("Save changes made to file \"{0!s}\"?".format(editor.filename()))
         else:
           messageBox.setText("Save changes made to this unsaved buffer?")
         yes = messageBox.addButton("Yes",QMessageBox.YesRole)
@@ -275,7 +275,7 @@ class CodeEditorWindow(QWidget):
           return
         MyMessageBox = QMessageBox()
         MyMessageBox.setWindowTitle("Warning!")
-        MyMessageBox.setText("File contents of \"%s\" have changed. Reload?" % editor.filename())
+        MyMessageBox.setText("File contents of \"{0!s}\" have changed. Reload?".format(editor.filename()))
         yes = MyMessageBox.addButton("Yes",QMessageBox.YesRole)
         no = MyMessageBox.addButton("No",QMessageBox.NoRole)
         never = MyMessageBox.addButton("Never",QMessageBox.RejectRole)
@@ -818,7 +818,7 @@ class CodeEditor(SearchableEditor,LineTextWidget):
       
     def highlightLine(self,line):
     
-      print "Highlighting line no %d" % line
+      print "Highlighting line no {0:d}".format(line)
 
       block = self.document().findBlockByLineNumber(line-1)
   
@@ -1122,7 +1122,7 @@ class CodeEditor(SearchableEditor,LineTextWidget):
         self.setFilename(filename)
         self.setHasUnsavedModifications(False)
       else:
-        raise IOError("Invalid path: %s" % filename)
+        raise IOError("Invalid path: {0!s}".format(filename))
            
     def activateBlockHighlighting(self,activate = False):
       self._blockHighlighting = activate

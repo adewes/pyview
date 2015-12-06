@@ -32,7 +32,7 @@ class Instrument(ThreadedDispatcher,Reloadable,object):
     pass
     
   def __str__(self):
-    return "Instrument \"%s\"" % self.name()
+    return "Instrument \"{0!s}\"".format(self.name())
     
   def saveState(self,name):
     """
@@ -122,7 +122,7 @@ class VisaInstrument(Instrument):
           return lambda *args,**kwargs: self.executeVisaCommand(attr,*args,**kwargs)
         else:
           return attr
-      raise AttributeError("No such attribute: %s" % name)
+      raise AttributeError("No such attribute: {0!s}".format(name))
 
 import pickle
 import cPickle
@@ -182,7 +182,7 @@ class ServerConnection:
       sock.send(command.toString())
       lendata = sock.recv(4)
       if len(lendata) == 0:
-        raise Exception("Connection to server %s port %d failed." % (self._ip,self._port))
+        raise Exception("Connection to server {0!s} port {1:d} failed.".format(self._ip, self._port))
       length = unpack("l",lendata)[0]
       received = sock.recv(length)
       binary = received
@@ -193,7 +193,7 @@ class ServerConnection:
         return None
       response = Command().fromString(binary)
       if response == None:
-        raise Exception("Connection to server %s port %d failed." % (self._ip,self._port))
+        raise Exception("Connection to server {0!s} port {1:d} failed.".format(self._ip, self._port))
       if response.name() == "exception" and len(response.args()) > 0:
         raise response.args()[0]
       return response.args()[0]
@@ -222,7 +222,7 @@ class RemoteInstrument(ThreadedDispatcher,Reloadable,object):
     return result
     
   def __str__(self):
-    return "Remote Instrument \"%s\" on server %s:%d" % (self.name(),self._server.ip(),self._server.port())
+    return "Remote Instrument \"{0!s}\" on server {1!s}:{2:d}".format(self.name(), self._server.ip(), self._server.port())
     
   def name(self):
     """We redefine name, since it is already defined as an attribute in Thread
@@ -233,7 +233,7 @@ class RemoteInstrument(ThreadedDispatcher,Reloadable,object):
     return self.remoteDispatch("__getitem__",[str(key)])
 
   def __setitem__(self,key,value):
-    print "Setting %s" % key
+    print "Setting {0!s}".format(key)
     return self.remoteDispatch("__setitem__",[key,value])
 
   def __delitem__(self,key):

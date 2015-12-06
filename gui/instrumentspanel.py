@@ -75,7 +75,7 @@ class InstrumentsPanel(QWidget,ObserverWidget):
   def reloadInstrument(self):
     selected = self.instrumentlist.selectedItems()
     for instrument in selected:
-      print "Reloading %s" % instrument.text(0)
+      print "Reloading {0!s}".format(instrument.text(0))
       self.manager.reloadInstrument(str(instrument.text(0)))
 
   def showFrontPanel(self):
@@ -104,7 +104,7 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     message.setIcon(QMessageBox.Question) 
     name = str(self.setupList.currentText())
     if name in self._states:
-      message.setText("Do you really want to remove setup \"%s\"?" % name)
+      message.setText("Do you really want to remove setup \"{0!s}\"?".format(name))
       message.setStandardButtons(QMessageBox.Cancel  | QMessageBox.Ok)
       message.setDefaultButton(QMessageBox.Cancel)
       result = message.exec_()
@@ -117,7 +117,7 @@ class InstrumentsPanel(QWidget,ObserverWidget):
     name = str(self.setupList.currentText())
 
     #Sanitize the name of the setup...
-    valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
+    valid_chars = "-_.() {0!s}{1!s}".format(string.ascii_letters, string.digits)
     name = ''.join(c for c in name if c in valid_chars)
 
     if name == "":

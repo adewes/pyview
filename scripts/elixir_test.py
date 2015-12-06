@@ -22,7 +22,7 @@ class DatacubeMapper(Base):
   children = relation('DatacubeMapper', order_by='DatacubeMapper.id', remote_side=[parent_id])
   
   def __repr__(self):
-    return "<%s>" % self.name
+    return "<{0!s}>".format(self.name)
     
 class DatacubeTable(Base):
 

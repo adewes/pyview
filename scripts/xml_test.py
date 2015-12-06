@@ -173,7 +173,7 @@ class XmlConverter(object):
 		objectNode = node
 		key = objectNode.nodeName
 		if not key in self._objectMap:
-			raise KeyError("Don't know how to load objects of type %s" % key)
+			raise KeyError("Don't know how to load objects of type {0!s}".format(key))
 		object = self._objectMap[key].fromXml(document,objectNode)
 		childrenNode = objectNode.getElementsByTagName("children")[0]
 		for childNode in childrenNode.childNodes:

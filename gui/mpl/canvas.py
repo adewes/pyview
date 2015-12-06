@@ -104,7 +104,7 @@ class MyMplCanvas(FigureCanvas):
       if event.xdata == None:
         self._moveLabel.hide()
         return
-      self._moveLabel.setText(QString(r"x = %g, y = %g" % (event.xdata,event.ydata)))
+      self._moveLabel.setText(QString(r"x = {0:g}, y = {1:g}".format(event.xdata, event.ydata)))
       self._moveLabel.adjustSize()
       offset = 10
       if self.width()-event.x < self._moveLabel.width():
@@ -129,7 +129,7 @@ class MyMplCanvas(FigureCanvas):
       fontSizeMenu = menu.addMenu("Font size")
       fontSizes = dict()
       for i in range(6,16,2):
-        fontSizes[i] = fontSizeMenu.addAction("%d px" % i)
+        fontSizes[i] = fontSizeMenu.addAction("{0:d} px".format(i))
       action = menu.exec_(self.mapToGlobal(event.pos()))
       if action == saveAsAction:
         filename = QFileDialog.getSaveFileName()
@@ -155,7 +155,7 @@ class MyMplCanvas(FigureCanvas):
         filename += ".pdf"
         cnt = 1
         while os.path.exists(filename):
-          filename = baseName+ "_%d.pdf" % cnt
+          filename = baseName+ "_{0:d}.pdf".format(cnt)
           cnt+=1
         (w,h) = self._fig.get_size_inches()
         try:
@@ -163,7 +163,7 @@ class MyMplCanvas(FigureCanvas):
           if not filename == '':
             self._fig.set_size_inches( self._width, self._height )
             self._fig.savefig(str(filename))
-            url = QUrl("file:///%s" % filename)
+            url = QUrl("file:///{0!s}".format(filename))
             services.openUrl(url)
         finally:
             self._fig.set_size_inches( w,h )
@@ -183,7 +183,7 @@ class MyMplCanvas(FigureCanvas):
         self.autoScale()
       for fontSize in fontSizes.keys():
         if action == fontSizes[fontSize]:
-          print "Setting font size to %d" % fontSize
+          print "Setting font size to {0:d}".format(fontSize)
           rcParams['font.size'] = str(fontSize)
           self.draw()
                          

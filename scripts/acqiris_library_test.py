@@ -17,6 +17,6 @@ for i in range(0,10):
   acqiris.bifurcationMap()
   acqiris.bifurcationMap()
   acqiris.bifurcationMap()
-  print "%f seconds elapsed." % ((time.time()-start)/3)
+  print "{0:f} seconds elapsed.".format(((time.time()-start)/3))
 
 MyManager.stop()

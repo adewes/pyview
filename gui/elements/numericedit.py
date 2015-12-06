@@ -13,7 +13,7 @@ class NumericEdit(QLineEdit):
     return float(self.text())
     
   def setValue(self,value):
-    self.setText("%g" % (value))
+    self.setText("{0:g}".format((value)))
     
   def setRange(self,minimum,maximum):
     pass

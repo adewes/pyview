@@ -19,7 +19,7 @@ class MwgObserver:
     print "Attached..."
     
   def updated(self,subject,property = None,value = None):
-    print "Property %s got updated!" % property
+    print "Property {0!s} got updated!".format(property)
 
 o = MwgObserver(mwg)
 

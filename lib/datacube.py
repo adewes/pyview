@@ -159,13 +159,13 @@ class Datacube(Subject,Observer,Reloadable):
     """
     Returns a string describing the structure of the datacube
     """
-    string = tabs+"cube(%d,%d)" % (self._meta["length"],len(self._meta["fieldNames"]))+"\n"
+    string = tabs+"cube({0:d},{1:d})".format(self._meta["length"], len(self._meta["fieldNames"]))+"\n"
     for item in self._children:
       child = item.datacube()
       attributes = item.attributes()
       parts = []
       for key in attributes:
-        parts.append((" %s = " % str(key))+str(attributes[key]))
+        parts.append((" {0!s} = ".format(str(key)))+str(attributes[key]))
       string+=", ".join(parts)+":\n"
       string+=child.structure(tabs+"\t")
     return string
@@ -584,7 +584,7 @@ class Datacube(Subject,Observer,Reloadable):
       raise Exception("You must supply a filename!")
     
     if verbose:
-      print "Creating HDF5 file at %s" % path
+      print "Creating HDF5 file at {0!s}".format(path)
     
     dataFile = h5py.File(path,"w")
 
@@ -719,9 +719,9 @@ class Datacube(Subject,Observer,Reloadable):
         item = self._children[i]
         child = item.datacube()
         if child.name() != None:
-          childfilename = basename+"-"+child.name()+("-%d" % (i))
+          childfilename = basename+"-"+child.name()+("-{0:d}".format((i)))
         else:
-          childfilename = basename+("-%d" % (i))
+          childfilename = basename+("-{0:d}".format((i)))
         childPath = child.savetxt(directory+"/"+childfilename,saveChildren = saveChildren,overwrite = True,forceSave = forceSave)
         children.append({'attributes':item.attributes(),'path':childPath})
 
