@@ -218,10 +218,10 @@ class InlineCommandNode(Node):
         if value != None:
           return value
         else:
-          print 'Failed to render \"%s\" node.' % self._command
+          print 'Failed to render \"{0!s}\" node.'.format(self._command)
           return ''
       except AttributeError:
-        return self._renderer.addInline('<%s>%s,%s</%s>' % (self._command,self._arguments,self._optionals,self._command))  
+        return self._renderer.addInline('<{0!s}>{1!s},{2!s}</{3!s}>'.format(self._command, self._arguments, self._optionals, self._command))  
 
 class BlockCommandNode(Node):
 
@@ -279,9 +279,9 @@ class BlockCommandNode(Node):
         return attr()
       except AttributeError:
         if self._innerLatex != None:
-          return self._renderer.addBlock('<%s>%s,%s,%s</%s>' % (self._command,self._arguments,self._optionals,self._innerLatex.render(format),self._command))  
+          return self._renderer.addBlock('<{0!s}>{1!s},{2!s},{3!s}</{4!s}>'.format(self._command, self._arguments, self._optionals, self._innerLatex.render(format), self._command))  
         else:
-          return self._renderer.addBlock('<%s>%s,%s,%s</%s>' % (self._command,self._arguments,self._optionals,self._block,self._command))  
+          return self._renderer.addBlock('<{0!s}>{1!s},{2!s},{3!s}</{4!s}>'.format(self._command, self._arguments, self._optionals, self._block, self._command))  
         
 class TextNode(Node):
 

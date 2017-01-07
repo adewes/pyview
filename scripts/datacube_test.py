@@ -6,7 +6,7 @@ import os.path
 from pyview.lib.datacube import *
 
 def generateSubcube(level = 0):
-  print "Generating subcube at level %d" % level
+  print "Generating subcube at level {0:d}".format(level)
   subcube = Datacube()
   mlist = []
   cnt = 0 

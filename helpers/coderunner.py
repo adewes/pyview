@@ -295,7 +295,7 @@ class CodeRunner(Reloadable,Subject):
     Executes a code string with a given identifier, filename and local and global variable dictionary.
     """
     if self.isExecutingCode(identifier):
-      raise Exception("Code thread %s is busy!" % identifier)
+      raise Exception("Code thread {0!s} is busy!".format(identifier))
     if lv == None:
       if not identifier in self._lv:
         self._lv[identifier] = dict()
@@ -353,7 +353,7 @@ class CodeProcess(Process):
       if hasattr(self._queue,attr):
         return getattr(self._queue,attr)
       else:
-        raise KeyError("No such attribute: %s" %attr)
+        raise KeyError("No such attribute: {0!s}".format(attr))
     
     def __init__(self,queue):
       self._queue = queue

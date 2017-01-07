@@ -26,7 +26,7 @@ mwg = RemoteInstrument(s,"qubit1mwg","anritsu_mwg",[],{'name' : 'Qubit 1','visaA
 mwg.start()
 print mwg.setFrequency(5.0)
 mwg.reloadInstrument()
-print "Qubit 1 frequency: %g " % mwg.frequency()
+print "Qubit 1 frequency: {0:g} ".format(mwg.frequency())
 
 #The Acqiris card
 #acqiris = RemoteInstrument(s,"acqiris","acqiris",kwargs = {'name': 'Acqiris Card'})

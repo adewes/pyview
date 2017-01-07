@@ -107,7 +107,7 @@ class Subject:
                   if hasattr(observer(),'updated'):
                     observer().updated(self,property,value)
                 except:
-                  print "An error occured when notifying observer %s." % str(observer())
+                  print "An error occured when notifying observer {0!s}.".format(str(observer()))
                   print sys.exc_info()
                   raise
         for deadObserver in deadObservers:
@@ -215,9 +215,9 @@ class Reloadable(object):
   #This function dynamically reloads the module that defines the class and updates the current instance to the new class.
   def reloadClass(self):
     self.beforeReload()
-    print "Reloading %s" % self.__module__
+    print "Reloading {0!s}".format(self.__module__)
     newModule = reload(sys.modules[self.__module__])
-    self.__class__ = eval("newModule.%s" % self.__class__.__name__)
+    self.__class__ = eval("newModule.{0!s}".format(self.__class__.__name__))
     self.onReload()
     
   def beforeReload(self,*args,**kwargs):

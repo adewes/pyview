@@ -137,7 +137,7 @@ from creole import Parser
 class Rules:
     # For the link targets:
     proto = r'http|https|ftp|nntp|news|mailto|telnet|file|irc'
-    extern = r'(?P<extern_addr>(?P<extern_proto>%s):.*)' % proto
+    extern = r'(?P<extern_addr>(?P<extern_proto>{0!s}):.*)'.format(proto)
     interwiki = r'''
             (?P<inter_wiki> [A-Z][a-zA-Z]+ ) :
             (?P<inter_page> .* )
@@ -183,41 +183,41 @@ class HtmlEmitter:
         return u'<hr>';
 
     def paragraph_emit(self, node):
-        return u'<p>%s</p>\n' % self.emit_children(node)
+        return u'<p>{0!s}</p>\n'.format(self.emit_children(node))
 
     def bullet_list_emit(self, node):
-        return u'<ul>\n%s</ul>\n' % self.emit_children(node)
+        return u'<ul>\n{0!s}</ul>\n'.format(self.emit_children(node))
 
     def number_list_emit(self, node):
-        return u'<ol>\n%s</ol>\n' % self.emit_children(node)
+        return u'<ol>\n{0!s}</ol>\n'.format(self.emit_children(node))
 
     def list_item_emit(self, node):
-        return u'<li>%s</li>\n' % self.emit_children(node)
+        return u'<li>{0!s}</li>\n'.format(self.emit_children(node))
 
     def table_emit(self, node):
-        return u'<table>\n%s</table>\n' % self.emit_children(node)
+        return u'<table>\n{0!s}</table>\n'.format(self.emit_children(node))
 
     def table_row_emit(self, node):
-        return u'<tr>%s</tr>\n' % self.emit_children(node)
+        return u'<tr>{0!s}</tr>\n'.format(self.emit_children(node))
 
     def table_cell_emit(self, node):
-        return u'<td>%s</td>' % self.emit_children(node)
+        return u'<td>{0!s}</td>'.format(self.emit_children(node))
 
     def table_head_emit(self, node):
-        return u'<th>%s</th>' % self.emit_children(node)
+        return u'<th>{0!s}</th>'.format(self.emit_children(node))
 
     def emphasis_emit(self, node):
-        return u'<i>%s</i>' % self.emit_children(node)
+        return u'<i>{0!s}</i>'.format(self.emit_children(node))
 
     def strong_emit(self, node):
-        return u'<b>%s</b>' % self.emit_children(node)
+        return u'<b>{0!s}</b>'.format(self.emit_children(node))
 
     def header_emit(self, node):
-        return u'<h%d>%s</h%d>\n' % (
+        return u'<h{0:d}>{1!s}</h{2:d}>\n'.format(
             node.level, self.html_escape(node.content), node.level)
 
     def code_emit(self, node):
-        return u'<tt>%s</tt>' % self.html_escape(node.content)
+        return u'<tt>{0!s}</tt>'.format(self.html_escape(node.content))
 
     def link_emit(self, node):
         target = node.content
@@ -228,11 +228,11 @@ class HtmlEmitter:
         m = self.addr_re.match(target)
         if m:
             if m.group('extern_addr'):
-                return u'<a href="%s">%s</a>' % (
+                return u'<a href="{0!s}">{1!s}</a>'.format(
                     self.attr_escape(target), inside)
             elif m.group('inter_wiki'):
                 raise NotImplementedError
-        return u'<a href="%s">%s</a>' % (
+        return u'<a href="{0!s}">{1!s}</a>'.format(
             self.attr_escape(target), inside)
 
     def image_emit(self, node):
@@ -241,11 +241,11 @@ class HtmlEmitter:
         m = self.addr_re.match(target)
         if m:
             if m.group('extern_addr'):
-                return u'<img src="%s" alt="%s">' % (
+                return u'<img src="{0!s}" alt="{1!s}">'.format(
                     self.attr_escape(target), self.attr_escape(text))
             elif m.group('inter_wiki'):
                 raise NotImplementedError
-        return u'<img src="%s" alt="%s">' % (
+        return u'<img src="{0!s}" alt="{1!s}">'.format(
             self.attr_escape(target), self.attr_escape(text))
 
     def macro_emit(self, node):
@@ -255,7 +255,7 @@ class HtmlEmitter:
         return u"<br>"
 
     def preformatted_emit(self, node):
-        return u"<pre>%s</pre>" % self.html_escape(node.content)
+        return u"<pre>{0!s}</pre>".format(self.html_escape(node.content))
 
     def default_emit(self, node):
         """Fallback function for emitting unknown nodes."""
@@ -270,7 +270,7 @@ class HtmlEmitter:
     def emit_node(self, node):
         """Emit a single node."""
 
-        emit = getattr(self, '%s_emit' % node.kind, self.default_emit)
+        emit = getattr(self, '{0!s}_emit'.format(node.kind), self.default_emit)
         return emit(node)
 
     def emit(self):

@@ -101,7 +101,7 @@ class TestDatacubeIO(unittest.TestCase):
     for i in range(0,2):
       rc.set(x = i,y = i*i, z = i*i*i,r = random.random())
       child = Datacube()
-      child.setName("test %d" % i)
+      child.setName("test {0:d}".format(i))
       rc.addChild(child)
       rc.commit()
       for j in range(0,2):
@@ -122,7 +122,7 @@ class TestDatacubeIO(unittest.TestCase):
     for i in range(0,2):
       cx.set(x = i,y = i*i*1j+4, z = i*i*i*1j,r = 1j*random.random())
       child = Datacube(dtype = numpy.complex128)
-      child.setName("test %d" % i)
+      child.setName("test {0:d}".format(i))
       cx.addChild(child)
       cx.commit()
       for j in range(0,2):
@@ -138,12 +138,12 @@ class TestDatacubeIO(unittest.TestCase):
     Test saving a datacube to a HDF5 file
     """
     for key in self.testCubes.keys():
-      print "Checking HDF5 loading of test cube %s" % key
+      print "Checking HDF5 loading of test cube {0!s}".format(key)
       cube = self.testCubes[key]
-      filename = os.path.normpath(self.dataPath+"/test_%s.hdf5" % key)
+      filename = os.path.normpath(self.dataPath+"/test_{0!s}.hdf5".format(key))
       cube.saveToHdf5(filename,overwrite = True)
       
-      self.assert_(os.path.exists(filename),"File %s has not been created!" % filename)
+      self.assert_(os.path.exists(filename),"File {0!s} has not been created!".format(filename))
       self.assert_(os.path.isfile(filename))
       
       restoredCube = Datacube()
@@ -156,12 +156,12 @@ class TestDatacubeIO(unittest.TestCase):
     Test saving a datacube to a text file
     """
     for key in self.testCubes.keys():
-      print "Checking plain text loading of test cube %s" % key
+      print "Checking plain text loading of test cube {0!s}".format(key)
       cube = self.testCubes[key]
-      filename = os.path.normpath(self.dataPath+"/test_%s.txt" % key)
+      filename = os.path.normpath(self.dataPath+"/test_{0!s}.txt".format(key))
       cube.savetxt(filename,overwrite = True)
       
-      self.assert_(os.path.exists(filename),"File %s has not been created!" % filename)
+      self.assert_(os.path.exists(filename),"File {0!s} has not been created!".format(filename))
       self.assert_(os.path.isfile(filename))
       
       restoredCube = Datacube()
@@ -174,12 +174,12 @@ class TestDatacubeIO(unittest.TestCase):
     Test saving a datacube to a binary file
     """
     for key in self.testCubes.keys():
-      print "Checking binary loading of test cube %s" % key
+      print "Checking binary loading of test cube {0!s}".format(key)
       cube = self.testCubes[key]
-      filename = os.path.normpath(self.dataPath+"/test_%s.dat" % key)
+      filename = os.path.normpath(self.dataPath+"/test_{0!s}.dat".format(key))
       cube.save(filename)
       
-      self.assert_(os.path.exists(filename),"File %s has not been created!" % filename)
+      self.assert_(os.path.exists(filename),"File {0!s} has not been created!".format(filename))
       self.assert_(os.path.isfile(filename))
       
       restoredCube = Datacube()

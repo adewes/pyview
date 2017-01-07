@@ -75,11 +75,11 @@ class Python (QSyntaxHighlighter):
         self.tri_double = (QRegExp('"""'), 2, STYLES['string2'])
 
         rules = []
-        rules += [(r'\b%s\b' % w, 0, STYLES['keyword'])
+        rules += [(r'\b{0!s}\b'.format(w), 0, STYLES['keyword'])
             for w in Python.keywords]
-        rules += [(r'%s' % o, 0, STYLES['operator'])
+        rules += [(r'{0!s}'.format(o), 0, STYLES['operator'])
             for o in Python.operators]
-        rules += [(r'%s' % b, 0, STYLES['brace'])
+        rules += [(r'{0!s}'.format(b), 0, STYLES['brace'])
             for b in Python.braces]
         rules += [
             # Double-quoted string, possibly containing escape sequences

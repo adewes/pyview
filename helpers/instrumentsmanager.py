@@ -112,7 +112,7 @@ class Manager(Subject,Singleton):
     for name in self._instruments.keys():
       try:
         if instruments == [] or name in instruments:
-          print "Storing state of instrument \"%s\"" % name
+          print "Storing state of instrument \"{0!s}\"".format(name)
           state[name] = dict()
           state[name]["state"]=self.getInstrument(name).saveState(stateName)
           if withInitialization:
@@ -120,7 +120,7 @@ class Manager(Subject,Singleton):
             state[name]["kwargs"] = self.handle(name).kwargs()
             state[name]["baseClass"] = self.handle(name).baseClass()
       except:
-        print "Could not save the state of instrument %s:" % name
+        print "Could not save the state of instrument {0!s}:".format(name)
         print traceback.print_exc()
     return state
     
@@ -134,10 +134,10 @@ class Manager(Subject,Singleton):
         self.initInstrument(name,state[name]["baseClass"],state[name]["args"],state[name]["kwargs"])
       if name in self._instruments.keys():
         try:
-          print "Restoring state of instrument \"%s\"" % name
+          print "Restoring state of instrument \"{0!s}\"".format(name)
           self.getInstrument(name).restoreState(state[name]["state"])
         except:
-          print "Could not restore the state of instrument %s:" % name
+          print "Could not restore the state of instrument {0!s}:".format(name)
           print traceback.print_exc()
 
   def parameters(self):
@@ -149,7 +149,7 @@ class Manager(Subject,Singleton):
       try:
         params[name]=self.getInstrument(name).parameters()
       except:
-        print "An error occured when storing the parameters of instrument %s" % name
+        print "An error occured when storing the parameters of instrument {0!s}".format(name)
         print tracebck.print_exc()
     return params
 
@@ -171,11 +171,11 @@ class Manager(Subject,Singleton):
     if handle == None:
       return None
     moduleName = handle._baseClass
-    frontPanelModule =  __import__("frontpanels.%s" % moduleName,globals(),globals(),[moduleName],-1)
+    frontPanelModule =  __import__("frontpanels.{0!s}".format(moduleName),globals(),globals(),[moduleName],-1)
     reload(frontPanelModule)
-    frontPanelModule =  __import__("frontpanels.%s" % moduleName,globals(),globals(),[moduleName],-1)
+    frontPanelModule =  __import__("frontpanels.{0!s}".format(moduleName),globals(),globals(),[moduleName],-1)
     frontPanel = frontPanelModule.Panel(handle._instrument)
-    frontPanel.setWindowTitle("%s front panel" % name)
+    frontPanel.setWindowTitle("{0!s} front panel".format(name))
     return frontPanel
     
   def initRemoteInstrument(self,address,baseclass = None,args = [],kwargs = {},forceReload = False):
@@ -195,7 +195,7 @@ class Manager(Subject,Singleton):
       if result:
         (host,port,name) = result.groups(0)
         try:
-          remoteServer = xmlrpclib.ServerProxy("http://%s:%s" % (host,port))
+          remoteServer = xmlrpclib.ServerProxy("http://{0!s}:{1!s}".format(host, port))
         except socket.error:
           raise
       else:
@@ -227,7 +227,7 @@ class Manager(Subject,Singleton):
     if name.lower() in self._instruments:
       return self._instruments[name.lower()].instrument()
     else:
-      raise AttributeError("Unknown instrument: %s" % name)
+      raise AttributeError("Unknown instrument: {0!s}".format(name))
     
   def _isUrl(self,name):
     if re.match(r'^rip\:\/\/',name) or  re.match(r'^http\:\/\/',name):
@@ -255,7 +255,7 @@ class Manager(Subject,Singleton):
       try:
         self.initInstrument(name = url,baseclass = baseclass,args = args,kwargs = kwargs,**globalParameters)
       except:
-        print "Could not initialize instrument: %s" % url
+        print "Could not initialize instrument: {0!s}".format(url)
         traceback.print_exc()
     
   def initInstrument(self,name,baseclass = None,args = [],kwargs = {},forceReload = False):
@@ -263,7 +263,7 @@ class Manager(Subject,Singleton):
     Loads an instrument. "name" is either the plain name of the instrument to be initialized (e.g. "vna1") or an URL (e.g. "rip://localhost:8000/vna1")
     Returns the reference to the instrument object, or None if the initialization fails.
     """
-    print "Initializing instrument %s" % name
+    print "Initializing instrument {0!s}".format(name)
     if name.lower() in self._instruments:
       if forceReload:
         return self.reloadInstrument(name,args = args,kwargs = kwargs)
@@ -279,9 +279,9 @@ class Manager(Subject,Singleton):
       baseclass = baseclass.lower()
       try:
         if "." in baseclass:
-          instrumentModule = __import__("%s" % baseclass,globals(),globals(),["Instr"],0)
+          instrumentModule = __import__("{0!s}".format(baseclass),globals(),globals(),["Instr"],0)
         else:
-          instrumentModule = __import__("%s%s" % (self._defaultInstrumentsModule,baseclass),globals(),globals(),["Instr"],0)
+          instrumentModule = __import__("{0!s}{1!s}".format(self._defaultInstrumentsModule, baseclass),globals(),globals(),["Instr"],0)
       except:
         raise
       try:
@@ -301,9 +301,9 @@ class Manager(Subject,Singleton):
     Reloads a given instrument.
     """
   
-    print "Reloading %s" %  name
+    print "Reloading {0!s}".format(name)
     if not name.lower() in self._instruments:
-      raise KeyError("No such instrument: %s" % name)
+      raise KeyError("No such instrument: {0!s}".format(name))
 
     handle = self._instruments[name.lower()]
     if handle.instrument().isAlive():
@@ -359,5 +359,5 @@ class RemoteManager():
         return  method(*args,**kwargs)
       else:
         return method
-    raise Exception("Unknown function name: %s" % command)
+    raise Exception("Unknown function name: {0!s}".format(command))
   

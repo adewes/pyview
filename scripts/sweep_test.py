@@ -41,13 +41,13 @@ while True:
 		vals1[:,0] = freqs1
 		vals1[:,1] = mag1
 		vals1[:,2] = phase1
-		savetxt("vna1-%d_%d.txt" % (globalIndex,cnt),vals1)		
+		savetxt("vna1-{0:d}_{1:d}.txt".format(globalIndex, cnt),vals1)		
 
 		vals2 = zeros((len(freqs2),3))
 		vals2[:,0] = freqs2
 		vals2[:,1] = mag2
 		vals2[:,2] = phase2
-		savetxt("vna2-%d_%d.txt" % (globalIndex,cnt),vals2)		
+		savetxt("vna2-{0:d}_{1:d}.txt".format(globalIndex, cnt),vals2)		
 
 		temp = tempSensor.temperature()
 		t = time.time()
@@ -59,8 +59,8 @@ while True:
 		data[cnt,4]=l2 
 		data[cnt,5]=mag1[len(mag1)/2]
 		data[cnt,6]=mag2[len(mag2)/2]
-		print "%d, T: %f, L1: %f, L2: %f, M1: %f, M2: %f" % (cnt,temp,l1,l2,mag1[len(mag1)/2],mag2[len(mag2)/2])
-		savetxt("cooldown-electrical-length-%d.txt" % globalIndex,data)
+		print "{0:d}, T: {1:f}, L1: {2:f}, L2: {3:f}, M1: {4:f}, M2: {5:f}".format(cnt, temp, l1, l2, mag1[len(mag1)/2], mag2[len(mag2)/2])
+		savetxt("cooldown-electrical-length-{0:d}.txt".format(globalIndex),data)
 		cnt+=1
 	except SystemExit:
 		print "Exiting..."

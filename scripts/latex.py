@@ -20,7 +20,7 @@ rules['block'] = rules['no_escape_char']+r'(\{)'
 rules['math'] = rules['no_escape_char']+r'\$'
 
 for rule in rules.keys():
-  print 'rule[%s] = %s' % (rule,rules[rule])
+  print 'rule[{0!s}] = {1!s}'.format(rule, rules[rule])
 
 reflags = re.DOTALL |re.MULTILINE | re.IGNORECASE
 
@@ -93,12 +93,12 @@ class Parser:
       numberedErrorText =''
       linenumber = len(lineNumbers)
       for line in errorText.split('\n'):
-          numberedErrorText+="%d\t:%s\n" % (linenumber,line)
+          numberedErrorText+="{0:d}\t:{1!s}\n".format(linenumber, line)
           linenumber+=1
       testfile = open('test.dat','w')
       testfile.write(parsedText)
       testfile.close()
-      print "Line %d, pos. %d: %s" % (1+len(lineNumbers),len(lineNumbers[len(lineNumbers)-1]),message)
+      print "Line {0:d}, pos. {1:d}: {2!s}".format(1+len(lineNumbers), len(lineNumbers[len(lineNumbers)-1]), message)
       print numberedErrorText
       
   def movePointer(self,remaining):
@@ -273,7 +273,7 @@ class Parser:
       while opening_tags != closing_tags:
         additional = re.match('('+'.*?'+rules['no_escape_char']+closing_tag+')',remaining_string,reflags)
         if additional == None:
-          self.parseError("EOF while scanning for end of %s...%s block!" % (opening_tag,closing_tag))
+          self.parseError("EOF while scanning for end of {0!s}...{1!s} block!".format(opening_tag, closing_tag))
           return (block_string,remaining_string)
         block_string = block_string + additional.string[additional.start(0):additional.end(0)]
         opening_tags = len(re.findall('('+rules['no_escape_char']+opening_tag+')',block_string,reflags)) 
