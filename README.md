@@ -4,7 +4,7 @@ PyView
 This repository contains a range of helper classes and functions to simplify scientific data acquisition and visualization using Python.
 I used these classes during my PhD thesis for acquiring and analyzing data in a high-frequency, low-temperature experiment involving superconducting qubits.
 
-##Overview
+## Overview
 
 The repository is organized in the following way:
 
@@ -17,10 +17,10 @@ The repository is organized in the following way:
 * *server* contains server scripts that implement a fully transparent remote control scheme for measurement instruments over the network using Python.
 * *test* contains various test scripts. 
 
-##Terms of Usage
+## Terms of Usage
 
 The code, unless otherwise indicated in the source file, can be freely reused. Feel free to include a reference to this code if you reuse it in your own project.
 
-##Further information
+## Further information
 
 This code is currently unmaintained. For further information on this code and my PhD work, check out my personal website (http://www.andreas-dewes.de/en/publications).
